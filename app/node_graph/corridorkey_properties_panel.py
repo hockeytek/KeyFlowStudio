@@ -969,13 +969,14 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
             return bool(models_info)
         has_green = bool(models_info.get("corridorkey_green"))
         has_blue = bool(models_info.get("corridorkey_blue"))
+        has_detailed_flags = "corridorkey_green" in models_info or "corridorkey_blue" in models_info
         legacy_ready = bool(models_info.get("corridorkey")) and not (
-            "corridorkey_green" in models_info or "corridorkey_blue" in models_info
+            has_detailed_flags
         )
         if screen_color == "blue":
-            return has_blue or legacy_ready
+            return has_blue
         if screen_color == "auto":
-            return bool(models_info.get("corridorkey")) or (has_green and has_blue) or legacy_ready
+            return has_green and has_blue if has_detailed_flags else False
         return has_green or legacy_ready
 
     def _download_model(self) -> None:
