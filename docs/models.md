@@ -2,6 +2,8 @@
 
 KeyFlow Studio integrates several third-party model workflows. Model weights are not committed to this repository.
 
+At runtime, the application checks the configured model cache and downloads supported weights automatically when they are available from the configured upstream source. Some upstream models may still require manual license acceptance, private tokens, or external setup, so automatic download should be treated as a supported path rather than a universal guarantee for every model.
+
 ## Storage Policy
 
 Do not commit:
@@ -27,7 +29,7 @@ export KEYFLOW_MODELS_DIR="$HOME/.local/share/com.keyflow.studio/models"
 
 ## CorridorKey
 
-CorridorKey weights should be downloaded from the upstream model source or by the app-managed download path. Keep the checkpoint outside Git history.
+CorridorKey weights can be resolved through the app-managed download path when available. Keep the checkpoint outside Git history.
 
 ## BiRefNet, SAM, GVM, MatAnyone2
 

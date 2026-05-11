@@ -72,6 +72,8 @@ brew install ffmpeg
 
 Model weights are intentionally not stored in this repository. Downloaded weights, checkpoints, and model caches are ignored by `.gitignore`.
 
+KeyFlow Studio checks the configured model cache at runtime and downloads supported weights automatically when they are available from the configured upstream source. Models that require manual license acceptance, private tokens, or external setup should be configured through their model-specific instructions.
+
 Typical local model locations are managed by the application settings or by `KEYFLOW_MODELS_DIR`. See [docs/models.md](docs/models.md) for details.
 
 ## Cloud GPU Worker
