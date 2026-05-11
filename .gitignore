@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Local agent/customization workspace files
+.agents/
+
+# Secrets and credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*accessKeys*.csv
+*credentials*.csv
+keyflow-cli_accessKeys.csv
+
+# Model weights and downloaded checkpoints
+gvm_core/weights/
+**/weights/
+**/checkpoints/
+**/models/
+*.ckpt
+*.pth
+*.pt
+*.onnx
+*.safetensors
+
+# Generated outputs and temp data
+outputs/
+output/
+Output/
+ClipsForInference/
+keyflow_uploads/
+keyflow_outputs/
+tmp/
+temp/
+*.log
+
+# Local scratch note
+Смотря*

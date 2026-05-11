@@ -1,0 +1,484 @@
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #d9e3ef;
+  background: #0e1218;
+}
+h1, h2, h3 {
+  color: #ffffff;
+}
+h1 {
+  font-size: 24px;
+  margin: 0 0 12px 0;
+}
+h2 {
+  font-size: 18px;
+  margin: 22px 0 10px 0;
+}
+h3 {
+  font-size: 15px;
+  margin: 18px 0 8px 0;
+}
+p, li {
+  font-size: 13px;
+  line-height: 1.55;
+}
+ul, ol {
+  margin: 8px 0 8px 20px;
+}
+code, pre {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+}
+code {
+  background: #182231;
+  color: #d7ecff;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+pre {
+  background: #111a26;
+  color: #d7ecff;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #223041;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 14px 0;
+}
+th, td {
+  border: 1px solid #223041;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+th {
+  background: #162131;
+  color: #ffffff;
+}
+td {
+  background: #101822;
+}
+a {
+  color: #7bc3ff;
+}
+.note {
+  background: #132131;
+  border-left: 4px solid #2a74de;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+.warn {
+  background: #2a1a12;
+  border-left: 4px solid #d28a32;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+</style>
+</head>
+<body>
+<h1>Cloud GPU Setup for KeyFlow Studio</h1>
+
+<p>This guide covers the full setup path from an empty AWS account to a working cloud GPU inside the application. It is based on what the app actually does through AWS APIs and SSH. If you skip some of these steps, parts of the Cloud (AWS) UI will be incomplete or will not show correct data.</p>
+
+<div class="note">
+<b>In short:</b> the app needs more than just an EC2 instance. It needs an AWS profile with the right permissions, a region, an EC2 key pair, a security group, GPU quota, a public or custom AMI, SSH access and, if you want the billing panel, Cost Explorer enabled.
+</div>
+
+<h2>What the application uses in AWS</h2>
+
+<table>
+  <tr>
+    <th>Service / API</th>
+    <th>Purpose</th>
+    <th>Required</th>
+  </tr>
+  <tr>
+    <td>EC2</td>
+    <td>List instances, start, stop, delete, create new GPU instances, search AMIs, list key pairs and security groups.</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>STS</td>
+    <td>Validate AWS credentials through GetCallerIdentity.</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>Pricing API</td>
+    <td>Show current On-Demand pricing for the selected instance type.</td>
+    <td>Recommended</td>
+  </tr>
+  <tr>
+    <td>EC2 Spot Price History</td>
+    <td>Show current Spot pricing and availability zone.</td>
+    <td>Recommended</td>
+  </tr>
+  <tr>
+    <td>Cost Explorer</td>
+    <td>Show month-to-date cost, yesterday's cost and end-of-month forecast.</td>
+    <td>Required if you want the billing panel</td>
+  </tr>
+  <tr>
+    <td>Service Quotas</td>
+    <td>Read G/VT Spot and On-Demand quota so the UI can filter to realistically launchable GPU types.</td>
+    <td>Recommended</td>
+  </tr>
+</table>
+
+<p>You do not need to deploy extra AWS infrastructure besides EC2. But your account and IAM permissions must allow the app to read pricing, quotas and billing if you want the Cloud UI to be complete.</p>
+
+<h2>What you need to create or enable first</h2>
+
+<ol>
+  <li>An AWS account with billing enabled.</li>
+  <li>An IAM user or profile with programmatic access.</li>
+  <li>An Access Key ID and Secret Access Key.</li>
+  <li>AWS CLI on your local machine, or credentials entered directly in the app dialog.</li>
+  <li>An EC2 key pair in the same region where you will launch the instance.</li>
+  <li>A security group with SSH and worker API access on port 8080.</li>
+  <li>Sufficient GPU quota in the selected region for Spot and/or On-Demand.</li>
+  <li>Cost Explorer enabled if you want cost information inside the app.</li>
+</ol>
+
+<h2>Minimal IAM permissions</h2>
+
+<p>The policy below matches the real application code. It is not the only option, but it is a practical minimal read/write set for correct operation.</p>
+
+<pre>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "ec2:DescribeInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:TerminateInstances",
+        "ec2:RunInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:DescribeImages",
+        "ec2:CreateImage",
+        "ec2:CreateTags",
+        "ec2:DescribeKeyPairs",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSpotPriceHistory",
+        "ec2:DescribeInstanceTypeOfferings",
+        "ec2:DescribeInstanceTypes",
+        "pricing:GetProducts",
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "servicequotas:GetServiceQuota"
+      ],
+      "Resource": "*"
+    }
+  ]
+}</pre>
+
+<p>If you do not need the billing panel, you can remove <code>ce:*</code>. If you do not need live instance pricing in the UI, you can remove Pricing and Spot history access, but that part of the UI will stop being useful.</p>
+
+<h2>Security group rules</h2>
+
+<table>
+  <tr>
+    <th>Rule</th>
+    <th>Purpose</th>
+    <th>Recommendation</th>
+  </tr>
+  <tr>
+    <td>Inbound TCP 22</td>
+    <td>SSH for worker bootstrap, environment checks and watchdog installation.</td>
+    <td>Restrict to your IP or VPN.</td>
+  </tr>
+  <tr>
+    <td>Inbound TCP 8080</td>
+    <td>HTTP API for the cloud worker.</td>
+    <td>Restrict to a trusted IP range. Do not leave it open to the internet unless you understand the risk.</td>
+  </tr>
+  <tr>
+    <td>Outbound all</td>
+    <td>Needed for apt, pip, Hugging Face, GitHub Releases and API calls.</td>
+    <td>The default allow-all egress usually works.</td>
+  </tr>
+</table>
+
+<div class="warn">
+<b>Important:</b> the worker listens on plain HTTP on port 8080 and does not use its own authentication layer. Security depends on your security group and source IP restrictions.
+</div>
+
+<h2>Which instance type to choose</h2>
+
+<p>The application keeps its own GPU catalog and prefers modern single-GPU options with 24 GB VRAM. That is why the UI usually prioritizes <code>g5</code> and <code>g6</code> families.</p>
+
+<table>
+  <tr>
+    <th>Type</th>
+    <th>GPU</th>
+    <th>VRAM</th>
+    <th>vCPU</th>
+    <th>Notes</th>
+  </tr>
+  <tr>
+    <td>g5.xlarge</td>
+    <td>NVIDIA A10G</td>
+    <td>24 GB</td>
+    <td>4</td>
+    <td>Baseline recommended option. Quick create uses this by default.</td>
+  </tr>
+  <tr>
+    <td>g5.2xlarge</td>
+    <td>NVIDIA A10G</td>
+    <td>24 GB</td>
+    <td>8</td>
+    <td>Good if you want a bit more CPU headroom for worker and ffmpeg.</td>
+  </tr>
+  <tr>
+    <td>g5.4xlarge</td>
+    <td>NVIDIA A10G</td>
+    <td>24 GB</td>
+    <td>16</td>
+    <td>Better for heavier graphs and more comfortable background processing.</td>
+  </tr>
+  <tr>
+    <td>g6.xlarge / g6.2xlarge / g6.4xlarge</td>
+    <td>NVIDIA L4</td>
+    <td>24 GB</td>
+    <td>4 / 8 / 16</td>
+    <td>Modern alternative when G6 is offered in the region.</td>
+  </tr>
+  <tr>
+    <td>g4dn.xlarge / 2xlarge / 4xlarge</td>
+    <td>NVIDIA T4</td>
+    <td>16 GB</td>
+    <td>4 / 8 / 16</td>
+    <td>Older budget family. VRAM can be tight for some workloads.</td>
+  </tr>
+  <tr>
+    <td>p3.2xlarge / p3.8xlarge</td>
+    <td>NVIDIA V100</td>
+    <td>16 GB</td>
+    <td>8 / 32</td>
+    <td>Older and often expensive. Use only if your region does not offer better options.</td>
+  </tr>
+</table>
+
+<p>For a pragmatic starting point, choose <b>Spot + g5.xlarge</b> to minimize cost or <b>On-Demand + g5.xlarge / g5.2xlarge</b> for stability.</p>
+
+<h2>How AMI works in the app</h2>
+
+<h3>1. Preferred option: your own KeyFlow Studio AMI</h3>
+<p>After the first successful bootstrap, create your own AMI from the instance. The app tags it with <code>App=KeyFlowStudio</code> and <code>SourceInstanceId=...</code>, then searches for these AMIs first on later launches. This is the best long-term workflow.</p>
+
+<h3>2. Automatic public GPU AMI detection</h3>
+<p>If no custom AMI exists yet, quick create tries to find a public Ubuntu 22.04 GPU Deep Learning AMI. The app searches by AMI name pattern instead of a hardcoded AMI ID because IDs are region-specific and change over time.</p>
+
+<p>The code looks for names matching patterns like:</p>
+<ul>
+  <li><code>Deep Learning Base OSS Nvidia Driver GPU AMI ... Ubuntu 22.04</code></li>
+  <li><code>Deep Learning OSS Nvidia Driver AMI GPU PyTorch ... Ubuntu 22.04</code></li>
+  <li>other public AMIs that contain <code>GPU</code> + <code>Ubuntu 22.04</code> + <code>Deep Learning</code></li>
+</ul>
+
+<h3>3. Manual AMI selection</h3>
+<p>The <b>Browse AMIs...</b> button lists all AMIs owned by your account in the current region. Use this when you already have one or more private images and want to choose the exact one.</p>
+
+<h2>What the UI shows for pricing</h2>
+
+<ul>
+  <li><b>Current instance price</b> shows live Spot or On-Demand pricing for the selected type.</li>
+  <li><b>Month / yesterday / forecast</b> come from Cost Explorer.</li>
+  <li><b>The launch-type picker</b> tries to show hourly pricing next to each instance type.</li>
+</ul>
+
+<div class="warn">
+<b>Important:</b> exact numbers always depend on region, availability zone, current Spot market and your account. The app does not use hardcoded prices. Use the live AWS-backed values in the UI, not old screenshots or notes.
+</div>
+
+<p>Extra costs to keep in mind:</p>
+<ul>
+  <li>EBS root volume: the app launches with <code>gp3 60 GB</code>.</li>
+  <li>Public IPv4 address.</li>
+  <li>Outbound data transfer.</li>
+  <li>AMI and snapshot storage after you create your own images.</li>
+</ul>
+
+<h2>Full first-time setup flow</h2>
+
+<ol>
+  <li><b>Create an IAM user or profile for the app.</b><br>Prepare an Access Key ID and Secret Access Key.</li>
+
+  <li><b>Enable Cost Explorer if you need the billing panel.</b><br>Without it, the cost widgets will stay empty or show errors.</li>
+
+  <li><b>Check GPU quotas in your target region.</b><br>Spot and On-Demand quotas are separate. If the instance type you need does not appear, the issue is usually quota or regional availability.</li>
+
+  <li><b>Create an EC2 key pair.</b><br>Download the <code>.pem</code> file and store it locally, for example <code>~/.ssh/keyflow-gpu.pem</code>.</li>
+
+  <li><b>Create a security group.</b><br>Open inbound TCP 22 and TCP 8080 only to your IP or a trusted range.</li>
+
+  <li><b>Configure your AWS profile locally.</b><br>If you prefer CLI, run:</li>
+</ol>
+
+<pre>aws configure --profile keyflow</pre>
+
+<p>Or enter credentials directly in the app using the <b>Set up credentials...</b> button.</p>
+
+<ol start="7">
+  <li><b>Open Settings → Cloud (AWS).</b><br>Fill in AWS Profile, Region, SSH key path and SSH user.</li>
+
+  <li><b>Open Instance Manager.</b><br>This is where AMI, key pair, security group, Spot/On-Demand mode and the current instance list are managed.</li>
+
+  <li><b>If you do not have a custom AMI yet, use 1-click: Create GPU.</b><br>The app tries to:</li>
+</ol>
+
+<ul>
+  <li>find a public Ubuntu 22.04 GPU AMI,</li>
+  <li>pick <code>g5.xlarge</code>,</li>
+  <li>launch it as Spot,</li>
+  <li>create a <code>gp3 60 GB</code> root volume,</li>
+  <li>attach the selected key pair and security group.</li>
+</ul>
+
+<ol start="10">
+  <li><b>Wait for the instance to reach Running state and select it.</b><br>Double-clicking the instance in the list fills the Instance ID and IP automatically.</li>
+
+  <li><b>Click Check Environment.</b><br>The app first runs an SSH inspection. If the worker, venv, dependencies or models are not ready, it offers to install everything automatically. Accept that prompt.</li>
+
+  <li><b>Wait for worker bootstrap to complete.</b><br>At this stage the app:</li>
+</ol>
+
+<ul>
+  <li>copies the cloud worker bundle via SSH,</li>
+  <li>creates or updates <code>~/keyflow-venv</code>,</li>
+  <li>installs Python dependencies,</li>
+  <li>downloads MatAnyone2, BiRefNet and GVM models,</li>
+  <li>starts the worker on port <code>8080</code>,</li>
+  <li>checks <code>/health</code>.</li>
+</ul>
+
+<ol start="13">
+  <li><b>After the first successful run, create your own AMI.</b><br>In the instance manager: right-click the instance → <b>Create AMI</b>. This makes later launches much faster because the worker and models are already baked into your image.</li>
+
+  <li><b>Optionally install the watchdog.</b><br>It shuts the instance down automatically after a long GPU idle period so you do not accidentally leave an expensive instance running.</li>
+
+  <li><b>Enable Cloud GPU and use the application normally.</b></li>
+</ol>
+
+<h2>Normal day-to-day workflow after setup</h2>
+
+<ol>
+  <li>Open Cloud (AWS) settings.</li>
+  <li>Start the instance or select it from Instance Manager.</li>
+  <li>Wait for Running state and a valid public IP.</li>
+  <li>Use <b>Check Environment</b> if the local cloud bundle changed and you need to resync the worker.</li>
+  <li>Run cloud jobs from the main window.</li>
+  <li>Stop the instance when finished, or rely on the watchdog if you installed it.</li>
+</ol>
+
+<h2>How the app fields map to AWS</h2>
+
+<table>
+  <tr>
+    <th>Field in the app</th>
+    <th>Meaning</th>
+  </tr>
+  <tr>
+    <td>AWS profile</td>
+    <td>The profile name from <code>~/.aws/credentials</code> or from the built-in credentials dialog.</td>
+  </tr>
+  <tr>
+    <td>Region</td>
+    <td>The EC2 region that contains the instance, key pair, security group and AMI.</td>
+  </tr>
+  <tr>
+    <td>Instance ID</td>
+    <td>The EC2 instance identifier, for example <code>i-0123456789abcdef0</code>.</td>
+  </tr>
+  <tr>
+    <td>SSH key</td>
+    <td>The local path to your <code>.pem</code> private key file.</td>
+  </tr>
+  <tr>
+    <td>SSH user</td>
+    <td>Usually <code>ubuntu</code> for Ubuntu/DLAMI. On Amazon Linux it is often <code>ec2-user</code>.</td>
+  </tr>
+  <tr>
+    <td>AMI</td>
+    <td>The image that new instances will use in the instance manager.</td>
+  </tr>
+  <tr>
+    <td>EC2 key pair</td>
+    <td>The AWS key pair name attached to a newly launched instance.</td>
+  </tr>
+  <tr>
+    <td>Security group</td>
+    <td>The SG that allows SSH and the worker API.</td>
+  </tr>
+  <tr>
+    <td>IP / hostname</td>
+    <td>The public worker address. Usually filled automatically, but you can override it manually.</td>
+  </tr>
+</table>
+
+<h2>Limitations and important caveats</h2>
+
+<ul>
+  <li><b>Spot can be interrupted.</b> If AWS reclaims a Spot instance, the current job is interrupted. Use On-Demand for stability.</li>
+  <li><b>The worker only processes one job at a time.</b> This is intentional because of GPU memory limits.</li>
+  <li><b>Port 8080 must be reachable.</b> SSH alone is not enough for cloud processing to work.</li>
+  <li><b>Terminate deletes the root EBS volume.</b> The app launches instances with <code>DeleteOnTermination=True</code>, so do not keep unique data only on the instance disk. Use AMIs, snapshots or download results.</li>
+  <li><b>Old private AMIs are not removed automatically.</b> Clean up unused AMIs and snapshots periodically.</li>
+  <li><b>Quick create is designed around Ubuntu 22.04 GPU AMIs.</b> That is why the default SSH user should normally stay <code>ubuntu</code>.</li>
+</ul>
+
+<h2>Troubleshooting</h2>
+
+<h3>Billing widgets do not show anything</h3>
+<ul>
+  <li>Make sure Cost Explorer is enabled.</li>
+  <li>Check <code>ce:GetCostAndUsage</code> and <code>ce:GetCostForecast</code> permissions.</li>
+</ul>
+
+<h3>The GPU instance list is empty or incomplete</h3>
+<ul>
+  <li>Check G/VT Spot and On-Demand quotas.</li>
+  <li>Check whether the region actually offers G5 or G6.</li>
+</ul>
+
+<h3>The app cannot find an AMI automatically</h3>
+<ul>
+  <li>Try another region.</li>
+  <li>Select an AMI manually from the list.</li>
+  <li>After the first successful bootstrap, create and keep using your own AMI.</li>
+</ul>
+
+<h3>SSH works but cloud processing does not start</h3>
+<ul>
+  <li>Check the inbound TCP 8080 rule.</li>
+  <li>Run <b>Check Environment</b> and wait for a successful health check.</li>
+</ul>
+
+<h3>SSH access fails</h3>
+<ul>
+  <li>Make sure you selected the correct <code>.pem</code> file.</li>
+  <li>Check the security group rule for port 22.</li>
+  <li>Use <code>ubuntu</code> for Ubuntu and <code>ec2-user</code> for Amazon Linux.</li>
+</ul>
+
+<h2>Useful AWS links</h2>
+
+<ul>
+  <li><a href="https://aws.amazon.com/cli/">AWS CLI</a></li>
+  <li><a href="https://aws.amazon.com/ec2/instance-types/g5/">Amazon EC2 G5</a></li>
+  <li><a href="https://aws.amazon.com/ec2/pricing/on-demand/">Amazon EC2 On-Demand Pricing</a></li>
+  <li><a href="https://calculator.aws/">AWS Pricing Calculator</a></li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,484 @@
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #d9e3ef;
+  background: #0e1218;
+}
+h1, h2, h3 {
+  color: #ffffff;
+}
+h1 {
+  font-size: 24px;
+  margin: 0 0 12px 0;
+}
+h2 {
+  font-size: 18px;
+  margin: 22px 0 10px 0;
+}
+h3 {
+  font-size: 15px;
+  margin: 18px 0 8px 0;
+}
+p, li {
+  font-size: 13px;
+  line-height: 1.55;
+}
+ul, ol {
+  margin: 8px 0 8px 20px;
+}
+code, pre {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+}
+code {
+  background: #182231;
+  color: #d7ecff;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+pre {
+  background: #111a26;
+  color: #d7ecff;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #223041;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0 14px 0;
+}
+th, td {
+  border: 1px solid #223041;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+th {
+  background: #162131;
+  color: #ffffff;
+}
+td {
+  background: #101822;
+}
+a {
+  color: #7bc3ff;
+}
+.note {
+  background: #132131;
+  border-left: 4px solid #2a74de;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+.warn {
+  background: #2a1a12;
+  border-left: 4px solid #d28a32;
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+</style>
+</head>
+<body>
+<h1>Настройка Cloud GPU для KeyFlow Studio</h1>
+
+<p>Эта инструкция описывает полный путь от пустого AWS-аккаунта до рабочего облачного GPU внутри программы. Текст основан на том, что приложение реально делает через AWS API и по SSH. Если какой-то шаг здесь пропустить, часть интерфейса в разделе Cloud (AWS) будет работать не полностью или не будет показывать корректные данные.</p>
+
+<div class="note">
+<b>Коротко:</b> программе нужен не просто EC2-инстанс, а целая связка: AWS profile с правами, регион, EC2 key pair, security group, GPU quota, публичный или свой AMI, SSH-доступ и, если нужен блок расходов, активированный Cost Explorer.
+</div>
+
+<h2>Что именно использует программа в AWS</h2>
+
+<table>
+  <tr>
+    <th>Сервис / API</th>
+    <th>Для чего используется</th>
+    <th>Обязателен</th>
+  </tr>
+  <tr>
+    <td>EC2</td>
+    <td>Список инстансов, запуск, остановка, удаление, создание новых GPU-инстансов, поиск AMI, список key pair и security groups.</td>
+    <td>Да</td>
+  </tr>
+  <tr>
+    <td>STS</td>
+    <td>Проверка AWS credentials через GetCallerIdentity.</td>
+    <td>Да</td>
+  </tr>
+  <tr>
+    <td>Pricing API</td>
+    <td>Показ On-Demand цены текущего типа инстанса.</td>
+    <td>Желательно</td>
+  </tr>
+  <tr>
+    <td>EC2 Spot Price History</td>
+    <td>Показ текущей Spot-цены и availability zone.</td>
+    <td>Желательно</td>
+  </tr>
+  <tr>
+    <td>Cost Explorer</td>
+    <td>Расходы за месяц, за вчера и прогноз до конца месяца.</td>
+    <td>Нужно, если хотите видеть блок расходов</td>
+  </tr>
+  <tr>
+    <td>Service Quotas</td>
+    <td>Чтение квоты на G/VT Spot и On-Demand, чтобы UI показывал только реально доступные GPU-типы.</td>
+    <td>Желательно</td>
+  </tr>
+</table>
+
+<p>Ничего дополнительно разворачивать в AWS, кроме EC2, не нужно. Но аккаунт и IAM-права должны позволять приложению читать цены, квоты и расходы, иначе часть UI будет показывать <code>N/A</code> или ошибки.</p>
+
+<h2>Что нужно создать или включить заранее</h2>
+
+<ol>
+  <li>AWS account с включённым биллингом.</li>
+  <li>IAM user или профиль с programmatic access.</li>
+  <li>Access Key ID и Secret Access Key для этого профиля.</li>
+  <li>AWS CLI на локальной машине или ввод credentials прямо в окне программы.</li>
+  <li>EC2 key pair в том же регионе, где будет запускаться инстанс.</li>
+  <li>Security group с открытым SSH и доступом к worker API на порту 8080.</li>
+  <li>GPU quota в выбранном регионе: отдельно для Spot и отдельно для On-Demand.</li>
+  <li>Cost Explorer, если хотите видеть расходы внутри программы.</li>
+</ol>
+
+<h2>Минимальные IAM-права</h2>
+
+<p>Ниже приведён минимальный набор действий, который соответствует реальному коду приложения. Это не единственный вариант, но этого достаточно, чтобы всё отображалось и управлялось корректно.</p>
+
+<pre>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "ec2:DescribeInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:TerminateInstances",
+        "ec2:RunInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:DescribeImages",
+        "ec2:CreateImage",
+        "ec2:CreateTags",
+        "ec2:DescribeKeyPairs",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSpotPriceHistory",
+        "ec2:DescribeInstanceTypeOfferings",
+        "ec2:DescribeInstanceTypes",
+        "pricing:GetProducts",
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "servicequotas:GetServiceQuota"
+      ],
+      "Resource": "*"
+    }
+  ]
+}</pre>
+
+<p>Если блок расходов вам не нужен, можно убрать действия <code>ce:*</code>. Если текущая цена в UI не нужна, можно убрать <code>pricing:GetProducts</code> и Spot history, но тогда часть интерфейса перестанет показывать полезную информацию.</p>
+
+<h2>Что должно быть в Security Group</h2>
+
+<table>
+  <tr>
+    <th>Правило</th>
+    <th>Зачем</th>
+    <th>Рекомендация</th>
+  </tr>
+  <tr>
+    <td>Inbound TCP 22</td>
+    <td>SSH для bootstrap worker, проверки окружения и установки watchdog.</td>
+    <td>Открывать только для вашего IP или VPN.</td>
+  </tr>
+  <tr>
+    <td>Inbound TCP 8080</td>
+    <td>HTTP API облачного worker.</td>
+    <td>Открывать только для доверенного IP. Не держать открытым на весь интернет без необходимости.</td>
+  </tr>
+  <tr>
+    <td>Outbound all</td>
+    <td>Нужен для apt, pip, Hugging Face, GitHub Releases и health/API вызовов.</td>
+    <td>Обычно оставляют стандартный allow all.</td>
+  </tr>
+</table>
+
+<div class="warn">
+<b>Важно:</b> worker слушает обычный HTTP на порту 8080 и не использует отдельную аутентификацию. Безопасность здесь обеспечивается только security group и ограничением источников доступа.
+</div>
+
+<h2>Какой инстанс выбирать</h2>
+
+<p>Приложение хранит собственный каталог GPU-типов и предпочитает современные single-GPU варианты с 24 GB VRAM. Именно поэтому в интерфейсе наверху обычно первыми будут <code>g5</code> и <code>g6</code>.</p>
+
+<table>
+  <tr>
+    <th>Тип</th>
+    <th>GPU</th>
+    <th>VRAM</th>
+    <th>vCPU</th>
+    <th>Комментарий</th>
+  </tr>
+  <tr>
+    <td>g5.xlarge</td>
+    <td>NVIDIA A10G</td>
+    <td>24 GB</td>
+    <td>4</td>
+    <td>Базовый рекомендованный вариант. Его использует quick create по умолчанию.</td>
+  </tr>
+  <tr>
+    <td>g5.2xlarge</td>
+    <td>NVIDIA A10G</td>
+    <td>24 GB</td>
+    <td>8</td>
+    <td>Хороший вариант, если хотите чуть больше CPU-запаса для worker и ffmpeg.</td>
+  </tr>
+  <tr>
+    <td>g5.4xlarge</td>
+    <td>NVIDIA A10G</td>
+    <td>24 GB</td>
+    <td>16</td>
+    <td>Для более тяжёлых пайплайнов и более комфортной фоновой обработки.</td>
+  </tr>
+  <tr>
+    <td>g6.xlarge / g6.2xlarge / g6.4xlarge</td>
+    <td>NVIDIA L4</td>
+    <td>24 GB</td>
+    <td>4 / 8 / 16</td>
+    <td>Современная альтернатива, если в регионе есть G6.</td>
+  </tr>
+  <tr>
+    <td>g4dn.xlarge / 2xlarge / 4xlarge</td>
+    <td>NVIDIA T4</td>
+    <td>16 GB</td>
+    <td>4 / 8 / 16</td>
+    <td>Устаревшая бюджетная группа. Может не хватать VRAM для части сценариев.</td>
+  </tr>
+  <tr>
+    <td>p3.2xlarge / p3.8xlarge</td>
+    <td>NVIDIA V100</td>
+    <td>16 GB</td>
+    <td>8 / 32</td>
+    <td>Старое, обычно более дорогое семейство. Используйте только если в регионе нет лучших вариантов.</td>
+  </tr>
+</table>
+
+<p>С точки зрения самого приложения наиболее прагматичный стартовый выбор: <b>Spot + g5.xlarge</b> для экономии или <b>On-Demand + g5.xlarge / g5.2xlarge</b> для стабильности.</p>
+
+<h2>Как работает AMI и какие варианты поддерживаются</h2>
+
+<h3>1. Предпочтительный вариант: свой AMI KeyFlow Studio</h3>
+<p>После первого успешного bootstrap лучше создать собственный AMI через контекстное меню инстанса. Программа создаёт AMI с тегами <code>App=KeyFlowStudio</code> и <code>SourceInstanceId=...</code>, а затем ищет такие AMI в первую очередь. Это самый удобный вариант для дальнейших запусков.</p>
+
+<h3>2. Автоматический поиск публичного GPU AMI</h3>
+<p>Если собственного AMI ещё нет, quick create пытается найти публичный Ubuntu 22.04 GPU Deep Learning AMI. Поиск делается по именам, а не по жёстко вшитому AMI ID, потому что AMI ID отличаются по регионам и меняются со временем.</p>
+
+<p>Программа ориентируется на такие шаблоны имён:</p>
+<ul>
+  <li><code>Deep Learning Base OSS Nvidia Driver GPU AMI ... Ubuntu 22.04</code></li>
+  <li><code>Deep Learning OSS Nvidia Driver AMI GPU PyTorch ... Ubuntu 22.04</code></li>
+  <li>другие публичные AMI с сочетанием <code>GPU</code> + <code>Ubuntu 22.04</code> + <code>Deep Learning</code></li>
+</ul>
+
+<h3>3. Ручной выбор из списка AMI</h3>
+<p>Кнопка <b>Выбрать из списка...</b> показывает все AMI, принадлежащие вашему аккаунту в текущем регионе. Это удобно, если вы уже делали snapshot или поддерживаете несколько собственных образов.</p>
+
+<h2>Что показывает UI по ценам и откуда это берётся</h2>
+
+<ul>
+  <li><b>Цена текущего инстанса</b> — текущая Spot-цена или On-Demand цена для выбранного типа.</li>
+  <li><b>Расходы за месяц / вчера / прогноз</b> — данные из Cost Explorer.</li>
+  <li><b>Список типов в менеджере</b> — приложение подгружает доступные в регионе GPU-форматы и пытается сразу показать почасовую цену возле каждого.</li>
+</ul>
+
+<div class="warn">
+<b>Важно:</b> точные суммы всегда зависят от региона, availability zone, рыночной Spot-цены и вашего аккаунта. В приложении нет жёстко зашитого прайса. Поэтому если вам нужен актуальный расчёт, ориентируйтесь на то, что показывает AWS API прямо сейчас, а не на старые скриншоты и заметки.
+</div>
+
+<p>Дополнительные расходы, которые надо учитывать отдельно:</p>
+<ul>
+  <li>EBS-диск инстанса: программа создаёт root volume <code>gp3 60 GB</code>.</li>
+  <li>Публичный IPv4-адрес.</li>
+  <li>Исходящий трафик.</li>
+  <li>Хранение AMI и snapshot'ов после создания своих образов.</li>
+</ul>
+
+<h2>Полный путь настройки с нуля</h2>
+
+<ol>
+  <li><b>Создайте IAM user или профиль для программы.</b><br>Подготовьте Access Key ID и Secret Access Key.</li>
+
+  <li><b>При необходимости включите Cost Explorer.</b><br>Если этого не сделать, блок расходов в программе будет пустым или будет показывать ошибку.</li>
+
+  <li><b>Проверьте GPU quotas в выбранном регионе.</b><br>Для Spot и On-Demand квоты отдельные. Если нужный тип не появляется в списке, почти всегда проблема в квоте или в отсутствии предложения этого типа в регионе.</li>
+
+  <li><b>Создайте EC2 key pair.</b><br>Скачайте <code>.pem</code> файл и сохраните его локально, например в <code>~/.ssh/keyflow-gpu.pem</code>.</li>
+
+  <li><b>Создайте security group.</b><br>Откройте входящий TCP 22 и TCP 8080 только для вашего IP или безопасного диапазона.</li>
+
+  <li><b>Настройте AWS profile локально.</b><br>Если удобнее через CLI, выполните:</li>
+</ol>
+
+<pre>aws configure --profile keyflow</pre>
+
+<p>Либо введите credentials прямо в диалоге программы по кнопке <b>Настроить credentials...</b>.</p>
+
+<ol start="7">
+  <li><b>Откройте Settings → Cloud (AWS).</b><br>Заполните поля AWS Profile, Region, SSH ключ и SSH user.</li>
+
+  <li><b>Откройте Менеджер инстансов.</b><br>Там находятся AMI, key pair, security group, выбор Spot/On-Demand и список текущих инстансов.</li>
+
+  <li><b>Если своего AMI ещё нет, используйте 1-клик: создать GPU.</b><br>Программа попытается:</li>
+</ol>
+
+<ul>
+  <li>найти публичный Ubuntu 22.04 GPU AMI,</li>
+  <li>взять <code>g5.xlarge</code>,</li>
+  <li>запустить его как Spot,</li>
+  <li>создать диск <code>gp3 60 GB</code>,</li>
+  <li>подставить выбранные key pair и security group.</li>
+</ul>
+
+<ol start="10">
+  <li><b>Дождитесь состояния Running и выберите инстанс.</b><br>Можно сделать двойной клик по инстансу в списке — Instance ID и IP подставятся автоматически.</li>
+
+  <li><b>Нажмите Проверить окружение.</b><br>Программа сначала делает SSH-проверку. Если worker, venv, зависимости или модели не готовы, появится предложение установить всё автоматически. Согласитесь.</li>
+
+  <li><b>Дождитесь bootstrap worker.</b><br>В этот момент приложение:</li>
+</ol>
+
+<ul>
+  <li>копирует cloud worker bundle по SSH,</li>
+  <li>создаёт или обновляет <code>~/keyflow-venv</code>,</li>
+  <li>ставит Python-зависимости,</li>
+  <li>скачивает модели MatAnyone2, BiRefNet и GVM,</li>
+  <li>запускает worker на порту <code>8080</code>,</li>
+  <li>проверяет <code>/health</code>.</li>
+</ul>
+
+<ol start="13">
+  <li><b>После первого успешного запуска создайте свой AMI.</b><br>В менеджере инстансов: правый клик по инстансу → <b>Создать AMI</b>. После этого повторные запуски будут намного быстрее, потому что worker и модели уже будут внутри вашего образа.</li>
+
+  <li><b>Опционально установите watchdog.</b><br>Он автоматически выключит инстанс, если GPU долго простаивает. Это полезно, чтобы не забывать дорогой инстанс включённым.</li>
+
+  <li><b>Включите флажок Cloud GPU и работайте из программы как обычно.</b></li>
+</ol>
+
+<h2>Как работать потом, когда всё уже настроено</h2>
+
+<ol>
+  <li>Открыть Cloud (AWS) настройки.</li>
+  <li>Нажать <b>Запустить</b> или выбрать инстанс в менеджере и стартовать его.</li>
+  <li>Дождаться Running и актуального IP.</li>
+  <li>При необходимости нажать <b>Проверить окружение</b>, если локальный bundle обновился.</li>
+  <li>Запускать задачи из основного окна.</li>
+  <li>После завершения работы остановить инстанс кнопкой <b>Остановить</b> или положиться на watchdog.</li>
+</ol>
+
+<h2>Как поля в программе соотносятся с AWS</h2>
+
+<table>
+  <tr>
+    <th>Поле в программе</th>
+    <th>Что это значит</th>
+  </tr>
+  <tr>
+    <td>AWS профиль</td>
+    <td>Имя профиля из <code>~/.aws/credentials</code> или из диалога credentials внутри программы.</td>
+  </tr>
+  <tr>
+    <td>Регион</td>
+    <td>Регион EC2, где находится инстанс, key pair, security group и AMI.</td>
+  </tr>
+  <tr>
+    <td>Instance ID</td>
+    <td>Идентификатор EC2-инстанса, например <code>i-0123456789abcdef0</code>.</td>
+  </tr>
+  <tr>
+    <td>SSH ключ</td>
+    <td>Локальный путь к вашему <code>.pem</code> файлу.</td>
+  </tr>
+  <tr>
+    <td>SSH user</td>
+    <td>Обычно <code>ubuntu</code> для Ubuntu/DLAMI. Для Amazon Linux это часто <code>ec2-user</code>.</td>
+  </tr>
+  <tr>
+    <td>AMI</td>
+    <td>AMI, из которого будут запускаться новые инстансы в менеджере.</td>
+  </tr>
+  <tr>
+    <td>EC2 key pair</td>
+    <td>Имя key pair в AWS, которое будет привязано к новому инстансу.</td>
+  </tr>
+  <tr>
+    <td>Security group</td>
+    <td>SG, который откроет SSH и HTTP API worker.</td>
+  </tr>
+  <tr>
+    <td>IP / hostname</td>
+    <td>Публичный адрес worker. Обычно заполняется автоматически, но можно ввести вручную.</td>
+  </tr>
+</table>
+
+<h2>Ограничения и важные оговорки</h2>
+
+<ul>
+  <li><b>Spot может быть прерван.</b> Если инстанс Spot будет забран AWS, текущая задача прервётся. Для стабильной работы используйте On-Demand.</li>
+  <li><b>Worker обрабатывает только одну задачу одновременно.</b> Это сознательное ограничение из-за GPU-памяти.</li>
+  <li><b>Порт 8080 должен быть доступен.</b> Без этого облачная обработка не сможет связаться с worker даже если SSH работает.</li>
+  <li><b>Terminate удаляет root EBS.</b> Инстанс создаётся с <code>DeleteOnTermination=True</code>, поэтому не храните уникальные данные только на локальном диске инстанса. Для долгосрочного хранения используйте AMI, snapshot или скачивайте результаты.</li>
+  <li><b>Старые пользовательские AMI не удаляются автоматически.</b> Периодически чистите ненужные образы и snapshot'ы, чтобы не копились расходы.</li>
+  <li><b>Quick create рассчитан на Ubuntu 22.04 GPU AMI.</b> Поэтому SSH user по умолчанию должен быть <code>ubuntu</code>.</li>
+</ul>
+
+<h2>Если что-то не работает</h2>
+
+<h3>Не показываются расходы</h3>
+<ul>
+  <li>Проверьте, что Cost Explorer активирован.</li>
+  <li>Проверьте права <code>ce:GetCostAndUsage</code> и <code>ce:GetCostForecast</code>.</li>
+</ul>
+
+<h3>Список GPU-инстансов пустой или странный</h3>
+<ul>
+  <li>Проверьте квоты G/VT для Spot и On-Demand.</li>
+  <li>Проверьте, что в регионе действительно предлагаются G5/G6.</li>
+</ul>
+
+<h3>AMI не находится автоматически</h3>
+<ul>
+  <li>Попробуйте другой регион.</li>
+  <li>Выберите AMI вручную через список.</li>
+  <li>После первого успешного bootstrap создайте свой AMI и дальше используйте его.</li>
+</ul>
+
+<h3>SSH проходит, а облачная задача не стартует</h3>
+<ul>
+  <li>Проверьте inbound rule на TCP 8080.</li>
+  <li>Нажмите <b>Проверить окружение</b> и дождитесь успешного health check.</li>
+</ul>
+
+<h3>Не удаётся подключиться по SSH</h3>
+<ul>
+  <li>Проверьте, что выбран правильный <code>.pem</code> файл.</li>
+  <li>Проверьте security group на порт 22.</li>
+  <li>Для Ubuntu используйте <code>ubuntu</code>, для Amazon Linux — <code>ec2-user</code>.</li>
+</ul>
+
+<h2>Полезные ссылки AWS</h2>
+
+<ul>
+  <li><a href="https://aws.amazon.com/cli/">AWS CLI</a></li>
+  <li><a href="https://aws.amazon.com/ec2/instance-types/g5/">Amazon EC2 G5</a></li>
+  <li><a href="https://aws.amazon.com/ec2/pricing/on-demand/">Amazon EC2 On-Demand Pricing</a></li>
+  <li><a href="https://calculator.aws/">AWS Pricing Calculator</a></li>
+</ul>
+
+</body>
+</html>

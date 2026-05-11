@@ -1,0 +1,1363 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1660</width>
+    <height>930</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>1660</width>
+    <height>930</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>KeyFlow Studio</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QMainWindow {
+    background-color: #0e1014;
+}
+QWidget {
+    background-color: #11141a;
+    color: #e8edf5;
+    font-family: &quot;Avenir Next&quot;, &quot;Helvetica Neue&quot;, &quot;Arial&quot;, sans-serif;
+    font-size: 13px;
+}
+QPushButton {
+    background-color: #1b212b;
+    border: 1px solid #2a3444;
+    color: #eef3fb;
+    padding: 6px 12px;
+    border-radius: 9px;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #243145;
+    border: 1px solid #43c7ff;
+}
+QPushButton:pressed {
+    background-color: #122235;
+    border: 1px solid #21b8ff;
+}
+QPushButton:checked {
+    background-color: #0f3c57;
+    border: 1px solid #34c2ff;
+    color: #f7fbff;
+}
+QPushButton:disabled {
+    background-color: #131820;
+    border: 1px solid #202835;
+    color: #5b6473;
+}
+QComboBox {
+    background-color: #171d27;
+    border: 1px solid #2a3444;
+    color: #e8edf5;
+    padding: 4px 6px;
+    border-radius: 8px;
+    min-height: 28px;
+}
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    min-width: 0px;
+    max-width: 0px;
+    width: 0px;
+    border: none;
+    margin: 0px;
+    padding: 0px;
+}
+QComboBox::down-arrow {
+    image: none;
+    width: 0px;
+    height: 0px;
+}
+QComboBox:hover {
+    border: 1px solid #43c7ff;
+}
+QComboBox QAbstractItemView {
+    background-color: #131a23;
+    color: #e8edf5;
+    selection-background-color: #0f3c57;
+    border: 1px solid #2a3444;
+}
+QSlider::groove:horizontal {
+    height: 7px;
+    background: #222c3a;
+    border-radius: 3px;
+}
+QSlider::sub-page:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #28b8ff, stop:1 #5fd7ff);
+    border-radius: 3px;
+}
+QSlider::handle:horizontal {
+    background: #eaf7ff;
+    border: 2px solid #24bbff;
+    width: 16px;
+    height: 16px;
+    margin: -6px 0;
+    border-radius: 8px;
+}
+QProgressBar {
+    background-color: #151c26;
+    border: 1px solid #2a3444;
+    border-radius: 7px;
+    text-align: center;
+    color: #d7e9f7;
+    font-size: 11px;
+    font-weight: 600;
+}
+QProgressBar::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1fa6ff, stop:1 #64d9ff);
+    border-radius: 6px;
+}
+QSpinBox {
+    background-color: #171d27;
+    border: 1px solid #2a3444;
+    color: #e8edf5;
+    padding: 3px 8px;
+    border-radius: 7px;
+    min-height: 25px;
+}
+QCheckBox {
+    color: #cfd7e3;
+    font-size: 12px;
+    spacing: 6px;
+}
+QCheckBox::indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid #3a4657;
+    background-color: #171d27;
+}
+QCheckBox::indicator:checked {
+    background-color: #24bbff;
+    border: 1px solid #24bbff;
+}
+QFrame#line1, QFrame#line2 {
+    color: #263244;
+    background-color: #263244;
+    max-height: 1px;
+}
+QLabel#lbl_brand {
+    color: #d8f4ff;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 0 6px;
+}
+QLabel#lbl_brand_badge {
+    color: #8ce1ff;
+    background-color: #16364a;
+    border: 1px solid #27546e;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+}
+QLabel#lbl_input_title,
+QLabel#lbl_output_title,
+QLabel#lbl_sec_params,
+QLabel#lbl_sec_actions {
+    color: #8ca0ba;
+}
+QLabel#input_video_label,
+QLabel#output_video_label {
+    background-color: #0b0f15;
+    border: 1px solid #2a3444;
+    border-radius: 12px;
+    color: #6d7f95;
+    font-size: 14px;
+}
+QLabel#input_video_label:hover,
+QLabel#output_video_label:hover {
+    border: 1px solid #43c7ff;
+}
+QPushButton#btn_play {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e8f7ff;
+    min-width: 39px;
+    max-width: 39px;
+    min-height: 39px;
+    max-height: 39px;
+    border-radius: 6px;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+}
+QPushButton#btn_first_frame,
+QPushButton#btn_prev_frame,
+QPushButton#btn_next_frame,
+QPushButton#btn_last_frame,
+QPushButton#btn_play_loop {
+    min-width: 32px;
+    max-width: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    border-radius: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: #f2f7ff;
+}
+QPushButton#btn_play_reverse {
+    min-width: 39px;
+    max-width: 39px;
+    min-height: 39px;
+    max-height: 39px;
+    border-radius: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: #f2f7ff;
+}
+QPushButton#btn_first_frame:hover,
+QPushButton#btn_prev_frame:hover,
+QPushButton#btn_play_reverse:hover,
+QPushButton#btn_play:hover,
+QPushButton#btn_next_frame:hover,
+QPushButton#btn_last_frame:hover,
+QPushButton#btn_play_loop:hover {
+    color: #ffffff;
+}
+QPushButton#btn_first_frame:pressed,
+QPushButton#btn_prev_frame:pressed,
+QPushButton#btn_play_reverse:pressed,
+QPushButton#btn_play:pressed,
+QPushButton#btn_next_frame:pressed,
+QPushButton#btn_last_frame:pressed,
+QPushButton#btn_play_loop:pressed {
+    color: #9ad7ff;
+}
+QSlider#frame_slider {
+    min-height: 12px;
+}
+QSlider#frame_slider::groove:horizontal {
+    border: none;
+    height: 2px;
+    border-radius: 1px;
+    background: #42526b;
+}
+QSlider#frame_slider::sub-page:horizontal {
+    border-radius: 1px;
+    background: #95a7bf;
+}
+QSlider#frame_slider::add-page:horizontal {
+    border-radius: 1px;
+    background: #42526b;
+}
+QSlider#frame_slider::handle:horizontal {
+    width: 6px;
+    margin: -8px 0;
+    border-radius: 2px;
+    background: #f4f7fb;
+    border: 1px solid #d2dde8;
+}
+QLabel#lbl_frame_info {
+    color: #f2f9ff;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+QLabel#lbl_playback_title {
+    color: #8ca0ba;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+QPushButton#btn_play:checked,
+QPushButton#btn_play_reverse:checked,
+QPushButton#btn_play_loop:checked {
+    background-color: #0f3c57;
+    border: 1px solid #34c2ff;
+    color: #d9f6ff;
+}</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="vl_main">
+    <property name="spacing">
+     <number>4</number>
+    </property>
+    <property name="leftMargin">
+     <number>6</number>
+    </property>
+    <property name="topMargin">
+     <number>10</number>
+    </property>
+    <property name="rightMargin">
+     <number>6</number>
+    </property>
+    <property name="bottomMargin">
+     <number>8</number>
+    </property>
+    <item>
+     <layout class="QHBoxLayout" name="hl_topbar">
+      <property name="spacing">
+       <number>6</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="lbl_brand">
+        <property name="minimumSize">
+         <size>
+          <width>160</width>
+          <height>34</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>220</width>
+          <height>34</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>KEYFLOW STUDIO</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="lbl_brand_badge">
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>24</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>80</width>
+          <height>24</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>0.0</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Policy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>72</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <spacer name="sp_file_label_left_pad">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Policy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>10</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="lbl_file_path">
+        <property name="styleSheet">
+         <string notr="true">color: #8ce1ff; font-size: 12px; font-weight: 600;</string>
+        </property>
+        <property name="text">
+         <string>Файл не загружен</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="sp_topbar_r">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_settings">
+        <property name="minimumSize">
+         <size>
+          <width>38</width>
+          <height>38</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>38</width>
+          <height>38</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Настройки приложения</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset>
+          <normaloff>app/assets/settings-gear.svg</normaloff>app/assets/settings-gear.svg</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>18</width>
+          <height>18</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="sp_topbar_device_right_pad">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Policy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>15</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="hl_viewers">
+      <property name="spacing">
+       <number>2</number>
+      </property>
+      <item>
+       <layout class="QVBoxLayout" name="vl_input">
+        <property name="spacing">
+         <number>4</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="lbl_input_title">
+          <property name="styleSheet">
+           <string notr="true">color: #8ca0ba; font-size: 11px; font-weight: 700; letter-spacing: 1px;</string>
+          </property>
+          <property name="text">
+           <string>INPUT PREVIEW</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="input_video_label">
+          <property name="minimumSize">
+           <size>
+            <width>720</width>
+            <height>405</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>405</height>
+           </size>
+          </property>
+          <property name="cursor">
+           <cursorShape>CrossCursor</cursorShape>
+          </property>
+          <property name="text">
+           <string>Загрузите видео или фото</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="vl_output">
+        <property name="spacing">
+         <number>4</number>
+        </property>
+        <item>
+         <layout class="QHBoxLayout" name="hl_output_header_row">
+          <property name="spacing">
+           <number>6</number>
+          </property>
+          <item>
+              <spacer name="sp_output_preview_left_pad">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+                <property name="sizeType">
+                 <enum>QSizePolicy::Policy::Fixed</enum>
+                </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+                  <width>15</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+             <item>
+              <widget class="QPushButton" name="btn_preview_foreground">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Display Gamma</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="icon">
+                 <iconset>
+                                    <normaloff>app/assets/preview-gamma-display.svg</normaloff>app/assets/preview-gamma-display.svg</iconset>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>14</width>
+                  <height>14</height>
+                 </size>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="btn_preview_alpha">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>26</width>
+                  <height>26</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Linear Preview</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="icon">
+                 <iconset>
+                                    <normaloff>app/assets/preview-gamma-linear.svg</normaloff>app/assets/preview-gamma-linear.svg</iconset>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>14</width>
+                  <height>14</height>
+                 </size>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="sp_output_title_left">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+              </spacer>
+             </item>
+          <item>
+           <widget class="QLabel" name="lbl_output_title">
+            <property name="styleSheet">
+             <string notr="true">color: #8ca0ba; font-size: 11px; font-weight: 700; letter-spacing: 1px;</string>
+            </property>
+            <property name="text">
+             <string>OUTPUT PREVIEW</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+             <item>
+              <spacer name="sp_output_title_right">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+              </spacer>
+             </item>
+          <item>
+           <widget class="QPushButton" name="btn_split_view">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>26</width>
+              <height>26</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>26</width>
+              <height>26</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="sp_output_split_right_pad">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Policy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>15</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QLabel" name="output_video_label">
+          <property name="minimumSize">
+           <size>
+            <width>720</width>
+            <height>405</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>405</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: #101722;
+background-image: qlineargradient(x1:0,y1:0,x2:1,y2:1,
+    stop:0 #182231,
+    stop:0.25 #182231,
+    stop:0.25 #111a27,
+    stop:0.5 #111a27,
+    stop:0.5 #182231,
+    stop:0.75 #182231,
+    stop:0.75 #111a27,
+    stop:1 #111a27);
+border: 1px solid #2d3a4d;
+border-radius: 12px;
+color: #86a0bb;
+font-size: 14px;</string>
+          </property>
+          <property name="text">
+           <string>Результат появится здесь</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <spacer name="sp_between_viewers_and_controls">
+      <property name="orientation">
+       <enum>Qt::Orientation::Vertical</enum>
+      </property>
+      <property name="sizeType">
+       <enum>QSizePolicy::Policy::Fixed</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>12</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="hl_control_row">
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <layout class="QVBoxLayout" name="vl_center_work">
+        <property name="spacing">
+         <number>4</number>
+        </property>
+        <property name="leftMargin">
+         <number>15</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>15</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <layout class="QHBoxLayout" name="hl_slider_row">
+          <property name="spacing">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QSlider" name="frame_slider">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>0</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="lbl_frame_info">
+            <property name="minimumSize">
+             <size>
+              <width>170</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">font-size: 18px; color: #f2f9ff; font-weight: 600; letter-spacing: 1px;</string>
+            </property>
+            <property name="text">
+             <string>0000 / 0000</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="hl_play_row">
+          <property name="spacing">
+           <number>8</number>
+          </property>
+          <item>
+           <layout class="QHBoxLayout" name="hl_play_left_zone">
+            <property name="spacing">
+             <number>8</number>
+            </property>
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QComboBox" name="combo_playback_presets">
+              <property name="minimumSize">
+               <size>
+                <width>210</width>
+                <height>38</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>250</width>
+                <height>33</height>
+               </size>
+              </property>
+              <item>
+               <property name="text">
+                <string>Preset: Default</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="hl_n_frames">
+              <property name="spacing">
+               <number>4</number>
+              </property>
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QLabel" name="lbl_start_frame">
+                <property name="styleSheet">
+                 <string notr="true">font-size: 12px; color: #a9bfd4; font-weight: 600;</string>
+                </property>
+                <property name="text">
+                 <string>Start:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spin_start_frame">
+                <property name="minimumSize">
+                 <size>
+                  <width>72</width>
+                  <height>33</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>72</width>
+                  <height>33</height>
+                 </size>
+                </property>
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>99999</number>
+                </property>
+                <property name="value">
+                 <number>1</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lbl_end_frame">
+                <property name="styleSheet">
+                 <string notr="true">font-size: 12px; color: #a9bfd4; font-weight: 600;</string>
+                </property>
+                <property name="text">
+                 <string>End:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spin_end_frame">
+                <property name="minimumSize">
+                 <size>
+                  <width>90</width>
+                  <height>33</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>90</width>
+                  <height>33</height>
+                 </size>
+                </property>
+                <property name="specialValueText">
+                 <string>Auto</string>
+                </property>
+                <property name="minimum">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <number>99999</number>
+                </property>
+                <property name="value">
+                 <number>0</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lbl_num_frames">
+                <property name="styleSheet">
+                 <string notr="true">font-size: 12px; color: #a9bfd4; font-weight: 600;</string>
+                </property>
+                <property name="text">
+                 <string>Frames:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spin_num_frames">
+                <property name="minimumSize">
+                 <size>
+                  <width>72</width>
+                  <height>33</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>72</width>
+                  <height>33</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>0 = все кадры видео</string>
+                </property>
+                <property name="specialValueText">
+                 <string>Все</string>
+                </property>
+                <property name="minimum">
+                 <number>0</number>
+                </property>
+                <property name="maximum">
+                 <number>99999</number>
+                </property>
+                <property name="value">
+                 <number>0</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <spacer name="spacer_play_left_push">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Policy::Expanding</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="hl_play_center_zone">
+            <property name="spacing">
+             <number>4</number>
+            </property>
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QPushButton" name="btn_first_frame">
+              <property name="toolTip">
+               <string>Первый кадр</string>
+              </property>
+              <property name="text">
+               <string>⏮</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_prev_frame">
+              <property name="toolTip">
+               <string>Предыдущий кадр</string>
+              </property>
+              <property name="text">
+               <string>◀</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_play_reverse">
+              <property name="minimumSize">
+               <size>
+                <width>39</width>
+                <height>39</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>39</width>
+                <height>39</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Воспроизвести назад</string>
+              </property>
+              <property name="text">
+               <string>◀</string>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>26</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_play">
+              <property name="minimumSize">
+               <size>
+                <width>39</width>
+                <height>39</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>39</width>
+                <height>39</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Воспроизвести / Пауза</string>
+              </property>
+              <property name="text">
+               <string>▶</string>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>26</width>
+                <height>26</height>
+               </size>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_next_frame">
+              <property name="toolTip">
+               <string>Следующий кадр</string>
+              </property>
+              <property name="text">
+               <string>▶</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_last_frame">
+              <property name="toolTip">
+               <string>Последний кадр</string>
+              </property>
+              <property name="text">
+               <string>⏭</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_play_loop">
+              <property name="toolTip">
+               <string>Зациклить воспроизведение</string>
+              </property>
+              <property name="text">
+               <string>↻</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="hl_play_right_zone">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <spacer name="spacer_play_right_push">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Policy::Expanding</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_run">
+              <property name="minimumSize">
+               <size>
+                <width>190</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>190</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Запустить инференс MatAnyone2</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">QPushButton {
+    background-color: #0f5a33;
+    border: 1px solid #29a56a;
+    color: #f0f8f4;
+    font-size: 14px;
+    border-radius: 10px;
+}
+QPushButton:hover { background-color: #1f8f58; }
+QPushButton:pressed { background-color: #0c4527; }
+QPushButton:disabled {
+    background-color: #15261c;
+    border: 1px solid #233529;
+    color: #4b6a57;
+}</string>
+              </property>
+              <property name="text">
+               <string>Start Processing</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_stop">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>104</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>104</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">QPushButton {
+    background-color: #5a1f22;
+    border: 1px solid #a03c41;
+    color: #f0f0f0;
+    border-radius: 9px;
+}
+QPushButton:hover { background-color: #8f3238; }
+QPushButton:pressed { background-color: #431317; }
+QPushButton:disabled {
+    background-color: #24171a;
+    border: 1px solid #3b272b;
+    color: #6a4a4a;
+}</string>
+              </property>
+              <property name="text">
+               <string>Stop</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btn_save_result">
+              <property name="minimumSize">
+               <size>
+                <width>158</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>158</width>
+                <height>34</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Сохранить результат на диск</string>
+              </property>
+              <property name="text">
+               <string>Save Result</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QProgressBar" name="progress_bar">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>15</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>13</height>
+           </size>
+          </property>
+          <property name="maximum">
+           <number>100</number>
+          </property>
+          <property name="value">
+           <number>0</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="vl_sidebar">
+        <property name="spacing">
+         <number>6</number>
+        </property>
+        <property name="leftMargin">
+         <number>8</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="lbl_sec_actions">
+          <property name="visible">
+           <bool>false</bool>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">color: #666666; font-size: 10px; font-weight: bold; letter-spacing: 1px;</string>
+          </property>
+          <property name="text">
+           <string>ACTIONS</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="sp_sidebar_bottom">
+          <property name="orientation">
+           <enum>Qt::Orientation::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>0</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusBar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
