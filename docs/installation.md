@@ -23,7 +23,9 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-For CUDA systems, install a PyTorch build that matches your NVIDIA driver and CUDA runtime before installing model-specific packages.
+The pinned defaults in `requirements.txt` are chosen for development compatibility, including Intel macOS constraints. For CUDA systems, install a PyTorch build that matches your NVIDIA driver and CUDA runtime before installing model-specific packages.
+
+Some model workflows may require extra upstream packages, private tokens, or license acceptance. See [models.md](models.md) for model cache and weight behavior.
 
 ## 4. Install FFmpeg
 
@@ -44,6 +46,13 @@ sudo apt install ffmpeg
 
 ```bash
 python main.py
+```
+
+You can also use the helper scripts from the repository root:
+
+```bash
+bash setup.sh
+bash run.sh
 ```
 
 ## Device Selection

@@ -1,10 +1,10 @@
 #!/bin/bash
-# Setup script for MatAnyone2 Qt Application on macOS
+# Setup script for KeyFlow Studio development installs on macOS/Linux
 
 set -e
 
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     MatAnyone2 Qt Application - Setup Script              ║"
+echo "║     KeyFlow Studio - Setup Script                         ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 
 # Colors for output
@@ -93,10 +93,10 @@ fi
 
 # Verify installation
 echo -e "\n${YELLOW}Verifying installation...${NC}"
-python3 -c "import PySide6; print('✓ PySide6 OK')"
-python3 -c "import torch; print(f'✓ PyTorch {torch.__version__} OK')"
-python3 -c "import cv2; print('✓ OpenCV OK')"
-python3 -c "import imageio; print('✓ imageio OK')"
+python -c "import PySide6; print('✓ PySide6 OK')"
+python -c "import torch; print(f'✓ PyTorch {torch.__version__} OK')"
+python -c "import cv2; print('✓ OpenCV OK')"
+python -c "import imageio; print('✓ imageio OK')"
 
 echo -e "\n${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║              Setup Complete!                              ║${NC}"

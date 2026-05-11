@@ -1,321 +1,257 @@
-# KeyFlow Studio - Checklist & Troubleshooting
+# KeyFlow Studio - Troubleshooting
 
-## ✅ Установка (Step-by-Step)
+This guide covers development installs and common runtime issues. Start with [QUICKSTART.md](QUICKSTART.md) or [docs/installation.md](docs/installation.md) for setup.
 
-### Шаг 1: Подготовка
-- [ ] macOS 10.13 или выше
-- [ ] Python 3.9+ установлен
-- [ ] У вас есть IntegratedTerm файловый менеджер (Finder/Terminal)
+## Installation Checks
 
-### Шаг 2: FFmpeg
+From the repository root:
+
 ```bash
-# Проверить установлена ли FFmpeg
-ffmpeg -version
+source .venv/bin/activate
+python --version
+python -c "import PySide6, torch, cv2; print('core imports ok')"
+ffmpeg -version | head -n 1
+```
 
-# Если нет - установить через Homebrew
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+Recommended baseline:
+
+- Python 3.11
+- FFmpeg on `PATH`
+- Dependencies installed with `pip install -r requirements.txt`
+- Model weights outside Git, usually in the app model cache or `KEYFLOW_MODELS_DIR`
+
+## App Does Not Start
+
+Run from a terminal so the traceback is visible:
+
+```bash
+source .venv/bin/activate
+python -u main.py
+```
+
+If the error is `No module named 'PySide6'`, reinstall dependencies in the active environment:
+
+```bash
+pip install -r requirements.txt
+```
+
+If Qt cannot initialize a display on Linux, verify desktop/display access. In headless CI, use:
+
+```bash
+QT_QPA_PLATFORM=offscreen PYTHONPATH="$PWD" python -m pytest tests/test_node_graph_dialog_smoke.py -q
+```
+
+## FFmpeg Not Found
+
+Check:
+
+```bash
+which ffmpeg
+ffmpeg -version
+```
+
+Install on macOS:
+
+```bash
 brew install ffmpeg
 ```
 
-### Шаг 3: Загрузка проекта и установка
+Install on Ubuntu:
 
 ```bash
-# Перейти в папку проекта
-cd /Volumes/MAC\ MEDIA/Temp/KeyFlowStudio
-
-# Запустить автоматическую установку
-bash setup.sh
-
-# Следуйте указаниям в скрипте (выберите вариант установки MatAnyone2)
+sudo apt update
+sudo apt install ffmpeg
 ```
 
-### Шаг 4: Проверка
+## Device Or Acceleration Issues
+
+KeyFlow Studio can run on CPU, Apple MPS, or CUDA when the selected models support that backend.
+
+Force CPU for debugging:
 
 ```bash
-# Активировать виртуальное окружение
-source .venv/bin/activate
-
-# Проверить что все установилось
-python -c "import PySide6, torch, cv2; print('✓ All OK')"
-
-# Проверить выбранное устройство
-python -c "from app.utils import get_device_name; print(f'Device: {get_device_name()}')"
+KEYFLOW_DEVICE=cpu python main.py
 ```
 
-### Шаг 5: Запуск
+Inspect the active device:
 
 ```bash
-bash run.sh
-# или
+python -c "from app.utils import get_device, get_device_name; d = get_device(); print(d, get_device_name())"
+```
+
+Common notes:
+
+- Intel macOS usually runs CPU paths; MPS is expected to be unavailable.
+- Apple Silicon can use MPS where PyTorch and the model path support it.
+- NVIDIA systems need a PyTorch build compatible with the driver/CUDA runtime.
+- CPU is useful for smoke checks but slow for production video inference.
+
+## Model Weights Or Model Package Errors
+
+Weights are intentionally not committed. Supported models download weights into the configured model cache when possible.
+
+Use an explicit cache when needed:
+
+```bash
+export KEYFLOW_MODELS_DIR="$HOME/.local/share/com.keyflow.studio/models"
 python main.py
 ```
 
-## 🚀 Первый запуск приложения
+If a model requires manual setup, tokens, or license acceptance, follow the model-specific instructions in [docs/models.md](docs/models.md) and [docs/node-rules/](docs/node-rules/).
 
-1. **Окно приложения должно открыться** с вкладками Input, Log & Progress
-2. **System Info должна покать ваше устройство** (MPS, CPU или CUDA)
-3. **Log должен показать версию FFmpeg**
+### `No module named 'matanyone2'`
 
-### Если ничего не произошло:
+MatAnyone2 is a model package dependency for matting workflows. Install it from source or a local checkout when that workflow is needed:
 
-```bash
-# Запустить с verbose логированием
-python -u main.py 2>&1 | tee app.log
-
-# Посмотреть ошибки в app.log
-cat app.log
-```
-
-## 🎬 Первая обработка видео
-
-### Подготовить тестовые файлы
-
-1. **Видеофайл:** любое видео mp4/avi/mov
-   - На первый раз: 5-10 секунд (30 кадров), 720p
-   - Убедиться что это реальное видео с человеком
-
-2. **Маска:** PNG с белым объектом на черном фоне
-   - Размер: такой же как первый кадр видео
-   - Можно получить через:
-     - PhotoShop/GIMP: Magic Wand + Export
-     - SAM2 (Segment Anything): https://huggingface.co/spaces/fffiloni/SAM2-Image-Predictor
-     - Или нарисовать в Paint
-
-### Пример:
-```bash
-# Скачать SAM2 результат маски
-# Или нарисовать маску вот так:
-python3 << 'EOF'
-from PIL import Image
-import numpy as np
-
-# Создать белый прямоугольник на черном фоне (тест)
-img = Image.new('L', (1280, 720), color=0)
-pixels = img.load()
-for x in range(300, 700):
-    for y in range(200, 600):
-        pixels[x, y] = 255
-img.save("test_mask.png")
-print("✓ Created test_mask.png")
-EOF
-```
-
-### В приложении:
-1. Нажать "Browse" в разделе "Video Input"
-2. Выбрать видеофайл
-3. Нажать "Browse" в разделе "Mask Input"
-4. Выбрать маску
-5. Нажать "Start Processing"
-
-## 🔧 Troubleshooting
-
-### ❌ "No module named 'PySide6'"
-```bash
-source .venv/bin/activate
-pip install PySide6
-```
-
-### ❌ "No module named 'matanyone2'"
-Модель не установлена. Два варианта:
-
-**Вариант A: Из GitHub (автоматически)**
 ```bash
 pip install git+https://github.com/pq-yang/MatAnyone2.git
 ```
 
-**Вариант B: Локально (если у вас есть копия)**
+Or:
+
 ```bash
 pip install -e /path/to/MatAnyone2
 ```
 
-### ❌ "No module named 'sam2'" (Intel macOS)
-На Intel macOS это часто связано с тем, что upstream `sam2` требует `torch>=2.5.1`,
-а доступные колеса ограничены веткой `torch 2.2.x`.
+### `No module named 'sam2'` On Intel macOS
 
-Для KeyFlow Studio добавлен workaround-скрипт:
+Some upstream SAM2 package constraints do not match Intel macOS PyTorch wheels. Use the included workaround script from an activated `.venv`:
 
 ```bash
-cd /Volumes/MAC\ MEDIA/Temp/KeyFlowStudio
 bash scripts/install_sam2_intel_workaround.sh
 ```
 
-Что делает скрипт:
-- клонирует исходники `sam2`,
-- ослабляет требование к версии `torch`,
-- ставит пакет в текущий `.venv`,
-- проверяет импорт и native init в `Sam2Service`.
+Run it again after recreating `.venv`.
 
-Важно: это неофициальный обход. После пересоздания `.venv` его нужно запустить снова.
+### BiRefNet Import Or Dependency Errors
 
-### ❌ "FFmpeg not found"
+BiRefNet fallback support uses `huggingface_hub`, `torchvision`, `transformers`, and related packages from `requirements.txt`. Reinstall dependencies first:
+
 ```bash
-# Проверить установлена ли
-which ffmpeg
-
-# Установить если нет
-brew install ffmpeg
-
-# Проверить что работает
-ffmpeg -version
+pip install -r requirements.txt
 ```
 
-### ❌ "No attribute 'mps'" или "MPS not available"
-Это нормально на Intel Mac. Приложение будет использовать CPU.
-На Apple Silicon это может быть проблема с версией PyTorch:
+If the GUI reports `No module named BiRefNetModule`, KeyFlow Studio should use the built-in fallback when dependencies are present. Check the app log for the actual missing dependency.
+
+### CorridorKey Checkpoint Download Fails
+
+CorridorKey can auto-download supported checkpoints. If download fails, check:
+
+- Internet access
+- Hugging Face availability
+- Whether the target repository requires authentication or license acceptance
+- `KEYFLOW_MODELS_DIR` permissions
+
+## Node Graph Problems
+
+Use graph diagnostics first. The validator checks required inputs, port compatibility, frame-count constraints, and node-specific contracts.
+
+Useful references:
+
+- [docs/NODE_GRAPH_STANDARD.md](docs/NODE_GRAPH_STANDARD.md)
+- [docs/node-rules/](docs/node-rules/)
+
+Common cases:
+
+- `Source/Load -> keying or matting node -> Write` is the simplest shape to validate.
+- `BiRefNet -> CorridorKey.alphahint` can use staged execution to reduce memory pressure.
+- `SAM -> CorridorKey.alphahint` can stream masks from disk when the graph contract allows it.
+- Matting workflows expect an image/video input plus a valid seed mask or compatible alpha/mask source.
+
+## Out Of Memory
+
+Symptoms include `CUDA out of memory`, MPS memory errors, very slow processing, or the process being killed by the OS.
+
+Try:
+
 ```bash
-# Переустановить torch для macOS
-pip uninstall torch torchvision
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+KEYFLOW_DEVICE=cpu python main.py
 ```
 
-### ❌ Приложение зависает при нажатии "Start Processing"
-**Это нормально.** Модель загружается в фоне (первый запуск 30-60 сек).
-Смотрите лог в "Log & Progress" табе, там должны быть сообщения.
+Or reduce input resolution before testing:
 
-Если вообще нет никаких сообщений:
-```bash
-# Остановить приложение (Ctrl+C)
-# Запустить в терминале с логированием
-python -u main.py 2>&1 | tail -20
-```
-
-### ❌ "CUDA out of memory" или "MPS out of memory"
-Видео слишком большое или разрешение слишком высокое.
-
-Решение:
-1. Попробуйте уменьшить разрешение видео:
 ```bash
 ffmpeg -i input.mp4 -vf scale=-1:720 output_720p.mp4
 ```
 
-2. Или обрабатывайте частями (разные временные интервалы)
+For heavy final runs, use the EC2 worker flow documented in [docs/cloud-gpu.md](docs/cloud-gpu.md).
 
-### ❌ Результирующее видео пустое или черное
-Проблема с маской:
-- [ ] Маска должна быть черный фон + белый объект
-- [ ] Размер маски должен совпадать с видео
-- [ ] Маска должна быть в формате PNG или JPG
+## Output Looks Empty, Black, Or Incorrect
 
-Проверить маску:
-```python
+Check the graph contract and the media inputs:
+
+- Source media is readable by FFmpeg/OpenCV.
+- Mask or alpha input has the expected dimensions and range.
+- Write node output path is configured.
+- Diagnostics do not report missing required inputs or incompatible ports.
+
+Inspect a mask image:
+
+```bash
+python - <<'PY'
 from PIL import Image
 import numpy as np
 
 mask = Image.open("your_mask.png")
-print(f"Mode: {mask.mode}, Size: {mask.size}")
-print(f"Min: {np.array(mask).min()}, Max: {np.array(mask).max()}")
+arr = np.asarray(mask)
+print("mode", mask.mode, "size", mask.size, "min", arr.min(), "max", arr.max())
+PY
 ```
 
-### ❌ "Unexpected keyword argument 'objects'"
-У вас старая версия MatAnyone2. Обновите:
-```bash
-pip install --upgrade matanyone2
-# или переустановите из GitHub
-pip uninstall matanyone2
-pip install git+https://github.com/pq-yang/MatAnyone2.git
-```
+## Cloud GPU Problems
 
-### ❌ Результаты сохраняются в странном месте
-Они сохраняются рядом с видеофайлом:
-```
-/путь/к/видео/
-├── input_video.mp4
-└── input_video_keyflow_out/
-    ├── alpha/
-    │   └── ...
-    └── fg/
-        └── ...
-```
+For EC2 worker setup, use [docs/cloud-gpu.md](docs/cloud-gpu.md).
 
-### ❌ Хочу отменить процесс во время обработки
-Нажмите кнопку "Cancel" в приложении.
-Worker проверяет флаг отмены после каждого кадра.
+Basic checks:
 
-## 📊 Ожидаемая производительность
+- AWS credentials stay outside the repository.
+- Region and instance type match your quota.
+- Security group allows only the access you intend.
+- Worker logs show CUDA and PyTorch availability.
+- Local and remote model caches are not committed to Git.
 
-### На Apple Silicon (M1/M2/M3):
-- 1-2 fps для видео 1080p (в зависимости от модели)
-- Видео на 10 сек = примерно 30 сек обработки
-- Использование памяти: 2-4 GB
+## Collect Debug Information
 
-### На Intel Mac (CPU):
-- 0.1-0.5 fps (намного медленнее)
-- Видео на 10 сек = примерно 5-10 минут
-- **Рекомендуется:** уменьшить разрешение
-
-## 🔍 Проверка что работает
+Use this when asking for help:
 
 ```bash
-# Test 1: Check device
-python -c "from app.utils import get_device, get_device_name; \
-  device = get_device(); \
-  print(f'✓ Device: {get_device_name()}, Type: {device.type}')"
-
-# Test 2: Check FFmpeg
-python -c "from app.utils import check_ffmpeg, get_ffmpeg_info; \
-  print(f'✓ FFmpeg: {get_ffmpeg_info()}')"
-
-# Test 3: Check MatAnyone2
-python -c "from app.services import ModelService; \
-  ms = ModelService(); \
-  print('✓ MatAnyone2 can be imported')"
-
-# Test 4: Load model (warning: first time ~1 min)
-timeout 120 python -c "from app.services import ModelService; \
-  ms = ModelService(); \
-  ms.load_model(); \
-  print('✓ Model loaded successfully')" || echo "Timeout or error"
-
-# Test 5: Run app
-python main.py
-```
-
-## 📝 Сбор информации для отладки
-
-Если что-то не работает, соберите эту информацию:
-
-```bash
-# Сохранить вывод в файл
 {
   echo "=== System ==="
   uname -a
-  
+
   echo "=== Python ==="
   python --version
   which python
-  
+
   echo "=== FFmpeg ==="
   ffmpeg -version 2>&1 | head -n 1
-  
-  echo "=== PyTorch ==="
-  python -c "import torch; print(f'PyTorch: {torch.__version__}')"
-  python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
-  python -c "import torch; print(f'MPS: {torch.backends.mps.is_available()}')"
-  
-  echo "=== MatAnyone2 ==="
-  python -c "from matanyone2 import __version__; print(f'MatAnyone2: {__version__}')" 2>&1 || echo "Not installed"
-  
-  echo "=== App Test ==="
-  python -u main.py 2>&1 || echo "Error starting app"
-} | tee debug_info.txt
 
-# Отправить это содержимое при запросе помощи
+  echo "=== PyTorch ==="
+  python - <<'PY'
+import torch
+print('torch', torch.__version__)
+print('cuda', torch.cuda.is_available())
+print('mps', hasattr(torch.backends, 'mps') and torch.backends.mps.is_available())
+PY
+
+  echo "=== KeyFlow Device ==="
+  python - <<'PY'
+from app.utils import get_device, get_device_name
+print(get_device(), get_device_name())
+PY
+
+  echo "=== Smoke Test ==="
+  PYTHONPATH="$PWD" python -m pytest tests/test_node_graph_dialog_smoke.py -q
+} | tee debug_info.txt
 ```
 
-## ✅ Финальный чек-лист
+## Final Sanity Check
 
-При успешной установке должно быть:
+A healthy development install should be able to:
 
-- [ ] `python main.py` запускает окно приложения
-- [ ] Окно показывает "Device: ..." (MPS, CPU или CUDA)
-- [ ] Окно показывает версию FFmpeg
-- [ ] Можно выбрать видео и маску через "Browse"
-- [ ] Нажатие "Start" не вызывает ошибку
-- [ ] Логирование показав сообщение о загрузке модели
-- [ ] После обработки видео создается папка с результатами
-
-Если все это работает - приложение готово к использованию! 🎉
-
----
-
-**Застряли? Проверьте соответствующий раздел выше или соберите debug info и попробуйте переустановить зависимости.**
+- Start with `python main.py`
+- Show device and FFmpeg information in logs/status UI
+- Open the node graph editor
+- Validate a simple graph
+- Run the focused smoke test
+- Keep generated media, weights, caches, and credentials out of Git

@@ -5,10 +5,11 @@ Qt-приложение для node-based видео keying и matting workflow 
 Актуальные архитектурные документы:
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
 - [docs/NODE_GRAPH_STANDARD.md](NODE_GRAPH_STANDARD.md)
+- [docs/node-rules/](node-rules/)
 
 ## Требования
 
-- macOS 10.13 или выше, Linux или Windows в зависимости от backend
+- macOS, Linux или Windows в зависимости от backend
 - Python 3.11 рекомендуется
 - FFmpeg
 - CPU/MPS/CUDA в зависимости от выбранного режима исполнения
@@ -24,6 +25,8 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+Для самого короткого сценария запуска используйте [QUICKSTART.md](../QUICKSTART.md). Подробная установка описана в [docs/installation.md](installation.md).
 
 На macOS FFmpeg можно установить через Homebrew:
 
@@ -76,7 +79,7 @@ KeyFlowStudio/
 1. Запустить приложение: `python main.py`.
 2. Собрать граф обработки: Source/Load, SAM, BiRefNet, ChromaKey, CorridorKey, MatAnyone2, Write.
 3. Настроить свойства нод, пути к медиа, экспорту и устройству выполнения.
-4. Нажать Start Processing.
+4. Запустить выполнение графа.
 5. Проверить diagnostics, preview и write output.
 
 ## Важно для GitHub
