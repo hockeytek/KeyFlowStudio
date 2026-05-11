@@ -23,6 +23,7 @@ import numpy as np
 
 from app.node_graph.models import GraphEdge, GraphNode
 from app.utils.write_paths import get_port_output_label, resolve_graph_write_output_dir
+from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.workers.inference_worker import (
     InferenceWorker,
     _build_keyflow_output_dir,
@@ -352,6 +353,26 @@ class WritePlanTests(unittest.TestCase):
             self.assertTrue((output_dir / "S" / "img").exists())
             # Unconnected export (exp_2) must be skipped — no directory created
             self.assertFalse((output_dir / "out").exists())
+
+    def test_build_graph_write_plan_targets_resolves_connected_exports(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            nodes = [
+                GraphNode(id="src_1", type="source", title="Source Clip"),
+                GraphNode(id="exp_1", type="export", title="Alpha", properties={"auto_output_dir": True}),
+                GraphNode(id="exp_2", type="export", title="Loose", properties={"auto_output_dir": True}),
+            ]
+            edges = [GraphEdge(src_id="src_1", dst_id="exp_1", src_port="out", dst_port="in")]
+
+            targets = build_graph_write_plan_targets(nodes, edges, output_dir)
+
+        self.assertEqual(len(targets), 1)
+        target = targets[0]
+        self.assertEqual(target.node_id, "exp_1")
+        self.assertEqual(target.source_node_id, "src_1")
+        self.assertEqual(target.stream_label, "img")
+        self.assertEqual(target.target_dir, output_dir / "Source Clip" / "img")
+        self.assertEqual(target.write_cfg["output_dir"], str(output_dir / "Source Clip" / "img"))
 
     def test_resolve_auto_output_dir_uses_output_dir(self):
         base = Path("/tmp/test_out")

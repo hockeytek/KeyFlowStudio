@@ -27,6 +27,7 @@ from app.services.gvm_service import GVMService
 from app.services.sam3_service import Sam3Service
 from app.node_graph.diagnostics import format_graph_diagnostics_summary, format_graph_diagnostics_text
 from app.node_graph.models import GraphNode, GraphEdge
+from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.utils.media import (
     is_supported_image_file,
     is_numbered_image_sequence,
@@ -846,63 +847,33 @@ class InferenceWorker(QObject):
     ) -> None:
         """Create write target folders before processing so they are visible immediately."""
         self._graph_write_plans = {}
-        source_ports_by_dst: dict[str, str] = {}
-        source_nodes_by_dst: dict[str, str] = {}
-        node_types_by_id = {str(node.id): str(node.type) for node in nodes}
-        node_titles_by_id = {str(node.id): str(node.title or node.type) for node in nodes}
-        for edge in edges:
-            edge_dst_port = str(edge.dst_port or "").strip().lower()
-            dst_type = node_types_by_id.get(str(edge.dst_id), "")
-            if edge_dst_port == "in" or (dst_type == "export" and not edge_dst_port):
-                edge_src_port = str(edge.src_port or "").strip().lower()
-                if not edge_src_port:
-                    src_type = node_types_by_id.get(str(edge.src_id), "")
-                    from app.node_graph.specs import get_node_spec
-                    src_spec = get_node_spec(src_type)
-                    if src_spec is not None and len(src_spec.outputs) == 1:
-                        edge_src_port = str(src_spec.outputs[0].name or "out").strip().lower()
-                    else:
-                        edge_src_port = "out"
-                source_ports_by_dst[edge.dst_id] = edge_src_port
-                source_nodes_by_dst[edge.dst_id] = edge.src_id
-
+        targets = build_graph_write_plan_targets(nodes, edges, output_dir)
+        connected_export_ids = {target.node_id for target in targets}
         for node in nodes:
-            if node.type != "export" or not node.enabled:
-                continue
-
-            source_node_id = str(source_nodes_by_dst.get(node.id, "")).strip()
-            if not source_node_id:
+            if node.type == "export" and node.enabled and str(node.id) not in connected_export_ids:
                 logger.debug("Skipping unconnected Write node %s during target preparation", node.id)
-                continue
 
-            src_type = node_types_by_id.get(source_node_id, "")
-            src_port = source_ports_by_dst.get(node.id, "")
-            stream_label = normalize_write_stream_name(source_node_type=src_type, source_port=src_port)
-            source_node_title = node_titles_by_id.get(source_node_id, "")
-            port_label = get_port_output_label(src_type, src_port)
-            write_cfg = dict(node.properties or {})
-            target_dir = resolve_graph_write_output_dir(write_cfg, output_dir, stream_label, source_node_title, port_label)
+        for target in targets:
+            target_dir = target.target_dir
             target_dir.mkdir(parents=True, exist_ok=True)
-            write_cfg["output_dir"] = str(target_dir)
             self.log_message.emit(
                 self._tr("worker_graph_write_target_prepared").format(
-                    node_id=node.id,
-                    stream=stream_label,
+                    node_id=target.node_id,
+                    stream=target.stream_label,
                     path=str(target_dir),
                 )
             )
 
-            if source_node_id and stream_label:
-                key = (source_node_id, stream_label)
-                self._graph_write_plans.setdefault(key, []).append(
-                    {
-                        "node_id": node.id,
-                        "stream_label": stream_label,
-                        "write_cfg": write_cfg,
-                        "initialized": False,
-                        "closed": False,
-                    }
-                )
+            key = (target.source_node_id, target.stream_label)
+            self._graph_write_plans.setdefault(key, []).append(
+                {
+                    "node_id": target.node_id,
+                    "stream_label": target.stream_label,
+                    "write_cfg": target.write_cfg,
+                    "initialized": False,
+                    "closed": False,
+                }
+            )
 
     @staticmethod
     def _coerce_preview_frame(frame) -> np.ndarray | None:
