@@ -26,4 +26,5 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           KEYFLOW_DEVICE: cpu
+          PYTHONPATH: ${{ github.workspace }}
         run: pytest tests/test_node_graph_dialog_smoke.py -q
