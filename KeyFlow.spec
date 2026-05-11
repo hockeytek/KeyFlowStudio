@@ -47,5 +47,9 @@ app = BUNDLE(
     exe,
     name='KeyFlow Studio.app',
     icon='MatAnyone2.icns',
-    bundle_identifier=None,
+    bundle_identifier='com.keyflow.studio',
+    info_plist={
+        'CFBundleShortVersionString': '0.1.0',
+        'CFBundleVersion': '0.1.0',
+    },
 )

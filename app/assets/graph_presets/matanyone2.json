@@ -1,0 +1,159 @@
+{
+  "nodes": [
+    {
+      "id": "n0",
+      "type": "source",
+      "x": -533.0568335330532,
+      "y": -128.67742097631816,
+      "title": "Source",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "media_type": "video",
+        "path": "",
+        "custom_title": false,
+        "graph_node_id": "n0",
+        "live_sam": false,
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n1",
+      "type": "sam2",
+      "x": -252.02109259000824,
+      "y": 12.082611889529744,
+      "title": "SAM2 Mask",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "backend": "sam2",
+        "model_type": "vit_h",
+        "live_sam2": false,
+        "point_mode": "negative",
+        "clear_points_before_run": false,
+        "sam_status": "SAM2: ready for clicks",
+        "mask_items": [],
+        "selected_mask_rows": [
+          0
+        ],
+        "current_mask_ready": false,
+        "custom_title": false,
+        "graph_node_id": "n1",
+        "_mask_source_path": "",
+        "mask_payloads": []
+      }
+    },
+    {
+      "id": "n2",
+      "type": "matting",
+      "x": 30.571340080693275,
+      "y": -128.7253571373481,
+      "title": "MatAnyone2",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "preset": "Eval HR (1080p)",
+        "erode": 15,
+        "dilate": 15,
+        "warmup": 10,
+        "fg_background": "green",
+        "custom_title": false,
+        "graph_node_id": "n2",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n3",
+      "type": "export",
+      "x": 331.9712825772638,
+      "y": -39.85690377731282,
+      "title": "Write",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "auto_output_dir": true,
+        "output_dir": "",
+        "file_name": "",
+        "output_format": "source",
+        "video_codec": "h264",
+        "video_quality": 23,
+        "video_preset": "medium",
+        "png_compression": 6,
+        "png_bit_depth": 8,
+        "png_embed_alpha": false,
+        "jpg_quality": 90,
+        "custom_title": false,
+        "graph_node_id": "n3",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n4",
+      "type": "export",
+      "x": 332.10431114163686,
+      "y": -196.98870694025644,
+      "title": "Write",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "auto_output_dir": true,
+        "output_dir": "",
+        "file_name": "",
+        "output_format": "png",
+        "video_codec": "h264",
+        "video_quality": 23,
+        "video_preset": "medium",
+        "png_compression": 6,
+        "png_bit_depth": 8,
+        "png_embed_alpha": false,
+        "jpg_quality": 90,
+        "custom_title": false,
+        "graph_node_id": "n4",
+        "live_sam": false,
+        "_auto_png16_for_matte_applied": false,
+        "_auto_prores4444_for_processed_applied": false,
+        "live_sam2": false
+      }
+    }
+  ],
+  "connections": [
+    {
+      "src": "n0",
+      "dst": "n1",
+      "src_port": "out",
+      "dst_port": "img"
+    },
+    {
+      "src": "n0",
+      "dst": "n2",
+      "src_port": "out",
+      "dst_port": "img"
+    },
+    {
+      "src": "n1",
+      "dst": "n2",
+      "src_port": "out",
+      "dst_port": "mask"
+    },
+    {
+      "src": "n2",
+      "dst": "n4",
+      "src_port": "fg",
+      "dst_port": "in"
+    },
+    {
+      "src": "n2",
+      "dst": "n3",
+      "src_port": "alpha",
+      "dst_port": "in"
+    }
+  ],
+  "start_frame": 1,
+  "end_frame": 1,
+  "num_frames": 2
+}

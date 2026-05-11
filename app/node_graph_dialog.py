@@ -2919,20 +2919,20 @@ class NodeGraphDialog(QDialog):
             ],
         }
 
-    def builtin_corridorkey_birefnet_preset(self) -> dict:
+    def builtin_corridorkey_gvm_preset(self) -> dict:
         return {
             "nodes": [
                 {"id": "source", "type": "source", "x": -1000.0, "y": -240.0, "title": "", "custom_title": False, "properties": {}},
-                {"id": "birefnet", "type": "birefnet", "x": -620.0, "y": -80.0, "title": "", "custom_title": False, "properties": {}},
+                {"id": "gvm", "type": "gvm", "x": -620.0, "y": -80.0, "title": "", "custom_title": False, "properties": {}},
                 {"id": "corridorkey", "type": "corridorkey", "x": -220.0, "y": -240.0, "title": "", "custom_title": False, "properties": {}},
                 {"id": "write_alpha", "type": "export", "x": 120.0, "y": -330.0, "title": "Alpha Master", "custom_title": True, "properties": {}},
                 {"id": "write_fg", "type": "export", "x": 120.0, "y": -190.0, "title": "FG Clean Master", "custom_title": True, "properties": {}},
                 {"id": "write_preview", "type": "export", "x": 120.0, "y": -50.0, "title": "Preview Only", "custom_title": True, "properties": {}},
             ],
             "connections": [
-                {"src": "source", "dst": "birefnet", "src_port": "out", "dst_port": "image"},
+                {"src": "source", "dst": "gvm", "src_port": "out", "dst_port": "image"},
                 {"src": "source", "dst": "corridorkey", "src_port": "out", "dst_port": "image"},
-                {"src": "birefnet", "dst": "corridorkey", "src_port": "alpha", "dst_port": "alphahint"},
+                {"src": "gvm", "dst": "corridorkey", "src_port": "alpha", "dst_port": "alphahint"},
                 {"src": "corridorkey", "dst": "write_alpha", "src_port": "alpha", "dst_port": "in"},
                 {"src": "corridorkey", "dst": "write_fg", "src_port": "fg", "dst_port": "in"},
                 {"src": "corridorkey", "dst": "write_preview", "src_port": "comp", "dst_port": "in"},

@@ -1,0 +1,227 @@
+{
+  "nodes": [
+    {
+      "id": "n0",
+      "type": "source",
+      "x": -908.9375,
+      "y": -228.0,
+      "title": "Source",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "media_type": "video",
+        "path": "",
+        "custom_title": false,
+        "graph_node_id": "n0",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n1",
+      "type": "gvm",
+      "x": -573.3534482758621,
+      "y": -90.60344827586206,
+      "title": "GVM",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "num_frames_per_batch": 8,
+        "denoise_steps": 1,
+        "decode_chunk_size": 4,
+        "num_overlap_frames": 1,
+        "num_interp_frames": 1,
+        "noise_type": "zeros",
+        "use_clip_img_emb": false,
+        "dilate_radius": 0,
+        "custom_title": false,
+        "graph_node_id": "n1",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n2",
+      "type": "corridorkey",
+      "x": -248.75,
+      "y": -223.75,
+      "title": "CorridorKey • Balanced",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "preset": "balanced",
+        "alpha_hint_mode": "auto",
+        "input_colorspace": "auto",
+        "screen_color": "green",
+        "despill_strength": 0.5,
+        "despeckle": true,
+        "despeckle_size": 400,
+        "matte_clip_black": 0.0,
+        "matte_clip_white": 1.0,
+        "matte_shrink_grow": 0.0,
+        "matte_edge_blur": 0.0,
+        "matte_gamma": 1.0,
+        "temporal_smoothing": 0.0,
+        "refiner_strength": 1.0,
+        "use_refiner": true,
+        "output_mode": "processed",
+        "hint_dilate_radius": 0,
+        "custom_title": false,
+        "graph_node_id": "n2",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n3",
+      "type": "export",
+      "x": 123.70604022988502,
+      "y": -290.0630862068965,
+      "title": "FG Clean Master",
+      "custom_title": true,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "auto_output_dir": true,
+        "output_dir": "",
+        "file_name": "",
+        "output_format": "exr",
+        "video_codec": "h264",
+        "video_quality": 23,
+        "video_preset": "medium",
+        "png_compression": 6,
+        "png_bit_depth": 8,
+        "png_embed_alpha": false,
+        "jpg_quality": 90,
+        "custom_title": true,
+        "graph_node_id": "n3",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n4",
+      "type": "export",
+      "x": 124.44093965517243,
+      "y": -147.60704597701147,
+      "title": "Preview Only",
+      "custom_title": true,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "auto_output_dir": true,
+        "output_dir": "",
+        "file_name": "",
+        "output_format": "png",
+        "video_codec": "h264",
+        "video_quality": 23,
+        "video_preset": "medium",
+        "png_compression": 6,
+        "png_bit_depth": 8,
+        "png_embed_alpha": false,
+        "jpg_quality": 90,
+        "custom_title": true,
+        "graph_node_id": "n4",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n5",
+      "type": "export",
+      "x": 125.5590603448276,
+      "y": -430.0630862068965,
+      "title": "Alpha Master",
+      "custom_title": true,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "auto_output_dir": true,
+        "output_dir": "",
+        "file_name": "",
+        "output_format": "exr",
+        "video_codec": "h264",
+        "video_quality": 23,
+        "video_preset": "medium",
+        "png_compression": 6,
+        "png_bit_depth": 8,
+        "png_embed_alpha": false,
+        "jpg_quality": 90,
+        "custom_title": true,
+        "graph_node_id": "n5",
+        "live_sam2": false
+      }
+    },
+    {
+      "id": "n6",
+      "type": "export",
+      "x": 127.31845402298848,
+      "y": -13.850336206896571,
+      "title": "Write",
+      "custom_title": false,
+      "properties": {
+        "enabled": true,
+        "note": "",
+        "auto_output_dir": true,
+        "output_dir": "",
+        "file_name": "",
+        "output_format": "exr",
+        "video_codec": "h264",
+        "video_quality": 23,
+        "video_preset": "medium",
+        "png_compression": 6,
+        "png_bit_depth": 8,
+        "png_embed_alpha": false,
+        "jpg_quality": 90,
+        "custom_title": false,
+        "graph_node_id": "n6",
+        "live_sam2": false
+      }
+    }
+  ],
+  "connections": [
+    {
+      "src": "n2",
+      "dst": "n5",
+      "src_port": "alpha",
+      "dst_port": "in"
+    },
+    {
+      "src": "n2",
+      "dst": "n3",
+      "src_port": "fg",
+      "dst_port": "in"
+    },
+    {
+      "src": "n2",
+      "dst": "n4",
+      "src_port": "comp",
+      "dst_port": "in"
+    },
+    {
+      "src": "n1",
+      "dst": "n2",
+      "src_port": "alpha",
+      "dst_port": "alphahint"
+    },
+    {
+      "src": "n0",
+      "dst": "n2",
+      "src_port": "out",
+      "dst_port": "image"
+    },
+    {
+      "src": "n0",
+      "dst": "n1",
+      "src_port": "out",
+      "dst_port": "image"
+    },
+    {
+      "src": "n2",
+      "dst": "n6",
+      "src_port": "processed",
+      "dst_port": "in"
+    }
+  ],
+  "start_frame": 0,
+  "end_frame": 0,
+  "num_frames": 2
+}

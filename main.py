@@ -232,7 +232,7 @@ from app.settings import get_app_settings
 from app.cloud_settings import get_cloud_setting
 from app.settings_dialog_mixin import SettingsDialogMixin
 
-APP_VERSION = "1.0"
+APP_VERSION = "0.1.0"
 logger = logging.getLogger(__name__)
 
 
@@ -294,7 +294,7 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         self._completion_sound_enabled = bool(self._settings.value("ui/play_completion_sound", True, type=bool))
         self._setup_completion_sound()
         self._graph_builtin_preset_key = "builtin:matanyone2"
-        self._graph_builtin_corridorkey_birefnet_preset_key = "builtin:corridorkey_birefnet"
+        self._graph_builtin_corridorkey_gvm_preset_key = "builtin:corridorkey_gvm"
         self._graph_matanyone2_template_settings_key = "graph_presets/matanyone2_template_json"
         self._graph_empty_preset_key = "__empty__"
         self._graph_save_preset_key = "__save_current__"
@@ -304,7 +304,7 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             get_dialog=lambda: getattr(self, "_node_graph_dialog", None),
             graph_matanyone2_template_settings_key=self._graph_matanyone2_template_settings_key,
             graph_builtin_preset_key=self._graph_builtin_preset_key,
-            graph_builtin_corridorkey_birefnet_preset_key=self._graph_builtin_corridorkey_birefnet_preset_key,
+            graph_builtin_corridorkey_gvm_preset_key=self._graph_builtin_corridorkey_gvm_preset_key,
         )
         self._migrate_legacy_matanyone2_graph_template()
         self._graph_custom_presets = self._load_graph_custom_presets()
@@ -1070,7 +1070,7 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
                 get_dialog=lambda: getattr(self, "_node_graph_dialog", None),
                 graph_matanyone2_template_settings_key=self._graph_matanyone2_template_settings_key,
                 graph_builtin_preset_key=self._graph_builtin_preset_key,
-                graph_builtin_corridorkey_birefnet_preset_key=self._graph_builtin_corridorkey_birefnet_preset_key,
+                graph_builtin_corridorkey_gvm_preset_key=self._graph_builtin_corridorkey_gvm_preset_key,
             )
             self.graph_preset_store = coordinator
         return coordinator
@@ -1143,7 +1143,7 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             combo.clear()
             combo.addItem(self._tr("graph_preset_empty"), self._graph_empty_preset_key)
             combo.addItem(self._tr("graph_preset_matanyone2"), self._graph_builtin_preset_key)
-            combo.addItem(self._tr("graph_preset_corridorkey_birefnet"), self._graph_builtin_corridorkey_birefnet_preset_key)
+            combo.addItem(self._tr("graph_preset_corridorkey_gvm"), self._graph_builtin_corridorkey_gvm_preset_key)
             for name in sorted(self._graph_custom_presets.keys(), key=str.casefold):
                 combo.addItem(name, f"custom:{name}")
             combo.addItem(self._tr("graph_preset_save_current"), self._graph_save_preset_key)
@@ -1224,8 +1224,8 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             self._tr("graph_preset_matanyone2").casefold(),
             "matanyone2",
             "111",
-            self._tr("graph_preset_corridorkey_birefnet").casefold(),
-            "corridorkey+birefnet",
+            self._tr("graph_preset_corridorkey_gvm").casefold(),
+            "corridorkey+gvm",
         }
         if name.casefold() in reserved_builtin_names:
             QMessageBox.warning(self, self._tr("graph_preset_name_title"), self._tr("graph_preset_reserved_name"))

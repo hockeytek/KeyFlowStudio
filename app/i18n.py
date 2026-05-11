@@ -405,7 +405,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "btn_last_frame_tooltip": {"ru": "Последний кадр", "en": "Last frame"},
     "graph_preset_empty": {"ru": "Пресет графа: Пусто", "en": "Graph Preset: Empty"},
     "graph_preset_matanyone2": {"ru": "MatAnyone2", "en": "MatAnyone2"},
-    "graph_preset_corridorkey_birefnet": {"ru": "CorridorKey+BiRefNet", "en": "CorridorKey+BiRefNet"},
+    "graph_preset_corridorkey_gvm": {"ru": "CorridorKey+GVM", "en": "CorridorKey+GVM"},
     "graph_preset_save_current": {"ru": "Сохранить текущий пресет...", "en": "Save current preset..."},
     "graph_preset_delete_selected": {"ru": "Удалить выбранный пресет...", "en": "Delete selected preset..."},
     "graph_preset_replace_title": {"ru": "Заменить граф", "en": "Replace graph"},
