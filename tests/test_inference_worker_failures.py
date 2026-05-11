@@ -18,6 +18,31 @@ from app.utils.corridorkey_output import (
 
 
 class InferenceWorkerFailurePathTests(unittest.TestCase):
+    def test_preview_frame_wrapper_handles_linear_premultiplied_rgba(self):
+        frame = np.zeros((1, 2, 4), dtype=np.float32)
+        frame[0, 0] = [0.0, 0.0, 0.0, 0.0]
+        frame[0, 1] = [0.25, 0.25, 0.25, 1.0]
+
+        preview = InferenceWorker._coerce_preview_frame(frame)
+
+        self.assertIsNotNone(preview)
+        self.assertEqual(preview.shape, (1, 2, 3))
+        self.assertEqual(preview.dtype, np.uint8)
+        self.assertGreater(int(preview[0, 0, 0]), 100)
+
+    def test_bbox_wrappers_preserve_geometry_helpers(self):
+        frame = np.zeros((4, 5, 4), dtype=np.float32)
+        frame[1:3, 2:5, 3] = 1.0
+
+        bbox = InferenceWorker._frame_bbox(frame)
+        clipped = InferenceWorker._clip_frame_to_bbox(frame, (2, 1, 4, 3))
+
+        self.assertEqual(bbox, (2, 1, 5, 3))
+        self.assertEqual(InferenceWorker._bbox_intersection(bbox, (3, 0, 5, 2)), (3, 1, 5, 2))
+        self.assertEqual(InferenceWorker._bbox_union((0, 0, 0, 0), bbox), bbox)
+        self.assertEqual(float(clipped[1, 2, 3]), 1.0)
+        self.assertEqual(float(clipped[1, 4, 3]), 0.0)
+
     def test_birefnet_runtime_notice_is_exposed_for_mps_fallback(self):
         service = BiRefNetService()
         service.device = "mps"
