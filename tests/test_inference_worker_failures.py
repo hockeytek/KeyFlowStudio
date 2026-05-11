@@ -212,6 +212,55 @@ class InferenceWorkerFailurePathTests(unittest.TestCase):
         payload = emitted[0][1]
         self.assertEqual(payload.get("semantics"), "preview_only")
 
+    def test_stream_graph_write_frame_initializes_all_matching_image_plans(self):
+        worker = InferenceWorker.__new__(InferenceWorker)
+        worker._graph_start_frame = 10
+        worker._graph_stream_saved_paths = {}
+        worker._graph_fps = 25.0
+        emitted = []
+        worker.graph_stream_preview = SimpleNamespace(emit=lambda *args: emitted.append(args))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source_path = tmp_path / "clip.mp4"
+            source_path.write_bytes(b"0")
+            worker._graph_source_path = str(source_path)
+            alpha_dir = tmp_path / "alpha_out"
+            review_dir = tmp_path / "review_out"
+            worker._graph_write_plans = {
+                ("corridor_1", "alpha"): [
+                    {
+                        "node_id": "write_alpha",
+                        "stream_label": "alpha",
+                        "write_cfg": {"output_dir": str(alpha_dir), "output_format": "png"},
+                        "initialized": False,
+                        "closed": False,
+                    },
+                    {
+                        "node_id": "write_review",
+                        "stream_label": "alpha",
+                        "write_cfg": {"output_dir": str(review_dir), "output_format": "png"},
+                        "initialized": False,
+                        "closed": False,
+                    },
+                ]
+            }
+
+            frame = np.array([[0.0, 0.5], [1.0, 0.25]], dtype=np.float32)
+            worker._stream_graph_write_frame("corridor_1", "alpha", frame, 2, is_video=True)
+
+            plans = worker._graph_write_plans[("corridor_1", "alpha")]
+            for plan, out_dir in zip(plans, (alpha_dir, review_dir)):
+                self.assertTrue(plan["initialized"])
+                self.assertEqual(plan["out_dir"], out_dir)
+                self.assertIn(out_dir / "0002.png", plan["created_paths"])
+                self.assertTrue((out_dir / "0002.png").exists())
+                self.assertEqual(worker._graph_stream_saved_paths[plan["node_id"]], out_dir / "0001.png")
+
+        self.assertEqual([event[0] for event in emitted], ["write_alpha", "write_review"])
+        self.assertEqual([event[2] for event in emitted], [12, 12])
+        self.assertTrue(all(event[1].get("semantics") == "production_safe" for event in emitted))
+
     def test_sam3_node_uses_persisted_masks_like_sam(self):
         worker = InferenceWorker.__new__(InferenceWorker)
         worker.cancel_flag = SimpleNamespace(is_set=lambda: False)
