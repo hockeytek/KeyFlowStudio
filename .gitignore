@@ -44,6 +44,9 @@ gvm_core/weights/
 *.safetensors
 
 # Generated outputs and temp data
+build/
+dist/
+release-artifacts/
 outputs/
 output/
 Output/
