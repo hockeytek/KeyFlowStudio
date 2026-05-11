@@ -14,9 +14,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyflakes
       - name: Check Python syntax
         run: |
           python -m compileall -q main.py app tests scripts ec2_worker
+      - name: Check Python static issues
+        run: |
+          python -m pyflakes main.py app tests scripts ec2_worker
       - name: Check shell syntax
         run: |
           bash -n run.sh run_p1.sh setup.sh scripts/install_sam2_intel_workaround.sh ec2_worker/deploy_to_ec2.sh

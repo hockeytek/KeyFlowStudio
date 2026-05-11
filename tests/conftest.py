@@ -47,6 +47,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # replaces sys.modules["PySide6.*"] with MagicMock stubs (see note 1 above).
 try:
     from app.workers.inference_worker import InferenceWorker  # noqa: F401
+    _ = InferenceWorker
 except Exception:
     pass  # venv missing optional deps — tests will skip/fail individually
 
@@ -54,5 +55,6 @@ except Exception:
 # remove it from sys.modules (see note 2 above).
 try:
     import torchvision  # noqa: F401
+    _ = torchvision
 except Exception:
     pass

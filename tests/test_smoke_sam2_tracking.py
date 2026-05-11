@@ -554,7 +554,6 @@ class MainWindowSamGraphBehaviorTests(unittest.TestCase):
         window = main_module.MainWindow.__new__(main_module.MainWindow)
 
         captured_runtime = []
-        exported = {"nodes": [{"id": "sam_1", "type": "sam2", "properties": {}}], "connections": []}
 
         class _DialogStub:
             def sync_sam_runtime_state(self, **kwargs):
@@ -969,7 +968,6 @@ class InferenceWorkerMaskCoercionTests(unittest.TestCase):
             os.unlink(tmp_path)
 
     def test_export_preview_request_restores_saved_output_from_connected_target(self):
-        import io
         from PIL import Image as PILImage
 
         main_module = importlib.import_module("main")

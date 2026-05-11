@@ -8,10 +8,7 @@
 - Возвращаемый torch.device имеет правильный тип
 """
 import os
-import sys
 import unittest
-from pathlib import Path
-import importlib
 
 # Убеждаемся, что до импортирования pytorch используется CPU
 os.environ["KEYFLOW_DEVICE"] = "cpu"

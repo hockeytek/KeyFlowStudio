@@ -9,10 +9,7 @@
 """
 import importlib
 import os
-import sys
-import threading
 import unittest
-from pathlib import Path
 
 os.environ.setdefault("KEYFLOW_DEVICE", "cpu")
 

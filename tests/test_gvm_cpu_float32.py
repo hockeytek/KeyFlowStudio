@@ -15,7 +15,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("KEYFLOW_DEVICE", "cpu")
@@ -89,7 +89,6 @@ class Float32WrapperTests(unittest.TestCase):
             def to(self, *args, **kwargs):
                 return self
 
-        received: list = []
         pipe = _Float32PipeWrapper(_FakePipeWithVAE())
         # Simulate what GVMPipeline.__call__ does: self.vae.to(dtype=torch.float16)
         pipe.vae.to(dtype=torch.float16)

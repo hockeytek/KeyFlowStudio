@@ -6,13 +6,12 @@
   3. Worker execution: _execute_gvm_node с замоканным GVMService
 """
 import os
-import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 os.environ.setdefault("KEYFLOW_DEVICE", "cpu")
 
@@ -377,8 +376,6 @@ class GVMExecuteNodeTests(unittest.TestCase):
 
     def test_dilate_radius_applied(self):
         """С dilate_radius > 0 все PNG должны быть перезаписаны (проверяем вызов write)."""
-        import cv2 as _cv2
-
         worker = _make_worker()
         out_dir_ref = []
         worker.gvm_service = self._make_mock_gvm_service(out_dir_ref)

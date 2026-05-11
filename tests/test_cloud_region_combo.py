@@ -224,8 +224,8 @@ class TestRegionListCache(unittest.TestCase):
         fake_regions = ["us-east-1", "eu-west-1"]
 
         with patch("app.cloud_aws_settings_tab.get_regions_with_gpu_quota",
-                   return_value=(fake_regions, None)) as mock_aws, \
-             patch("app.cloud_aws_settings_tab.QTimer") as mock_timer, \
+               return_value=(fake_regions, None)), \
+             patch("app.cloud_aws_settings_tab.QTimer"), \
              patch("app.cloud_aws_settings_tab.threading.Thread") as mock_thread:
 
             combo = _FakeCombo()

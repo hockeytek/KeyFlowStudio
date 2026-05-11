@@ -214,7 +214,7 @@ class MergePresetSyntheticTest(unittest.TestCase):
                 # Red should be low
                 self.assertLess(r_out, 50, f"Red too high outside: {outside_pixel}")
                 
-                print(f"✅ Merge composition test passed (mode=over, BGR format)")
+                print("✅ Merge composition test passed (mode=over, BGR format)")
                 print(f"   Center (fg red over bg green): BGR={center_pixel}")
                 print(f"   Outside (bg only green):       BGR={outside_pixel}")
         else:
@@ -294,7 +294,7 @@ class MergePresetSyntheticTest(unittest.TestCase):
         )
         # result is RGBA float32
         self.assertEqual(result.shape[2], 4, "Result must be RGBA")
-        r, g, b, a = result[:,:,0], result[:,:,1], result[:,:,2], result[:,:,3]
+        r, b, a = result[:,:,0], result[:,:,2], result[:,:,3]
         # Inside subject: red channel dominant, alpha=1
         self.assertGreater(float(r[32, 32]), 0.7, "Subject should be red")
         self.assertLess(float(b[32, 32]), 0.2, "Subject should not be blue")

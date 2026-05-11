@@ -10,7 +10,6 @@
 import os
 import threading
 import time
-import tempfile
 import unittest
 
 os.environ.setdefault("KEYFLOW_DEVICE", "cpu")
@@ -220,7 +219,6 @@ class ExecuteNodeGraphCancelTests(unittest.TestCase):
 
         # Захватываем log_message-эмиты через monkey-patch
         executed_nodes = []
-        original_emit = None
 
         def fake_log(msg):
             executed_nodes.append(msg)
