@@ -2466,9 +2466,14 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         self.ui.spin_num_frames.blockSignals(True)
         self.ui.spin_end_frame.blockSignals(True)
         try:
-            self.ui.spin_start_frame.setMaximum(last)
-            self.ui.spin_end_frame.setMaximum(last)
-            self.ui.spin_num_frames.setMaximum(total)
+            for spin_box, maximum in (
+                (self.ui.spin_start_frame, last),
+                (self.ui.spin_end_frame, last),
+                (self.ui.spin_num_frames, total),
+            ):
+                set_maximum = getattr(spin_box, "setMaximum", None)
+                if callable(set_maximum):
+                    set_maximum(maximum)
             self.ui.spin_start_frame.setValue(start_frame)
             self.ui.spin_num_frames.setValue(frame_count)
             self.ui.spin_end_frame.setValue(end_frame)

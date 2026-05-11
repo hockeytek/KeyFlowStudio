@@ -255,7 +255,7 @@ Video-контейнеры допустимы только как preview-арт
 process_frame(
     image,            # [H,W,3] float32 0-1
     alpha_hint,       # [H,W] float32 0-1 (2D)
-    despill_strength, # 0-10 UI → 0-1 нормализовано внутри
+    despill_strength, # 0-1 UI/runtime value
     despeckle,        # bool
     despeckle_size,   # int
     refiner_strength, # float 0-2
