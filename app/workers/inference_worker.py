@@ -32,6 +32,7 @@ from app.workers.graph_execution_actions import (
     build_graph_downstream_targets,
     build_passthrough_source_output,
     format_deferred_action_log,
+    gather_graph_node_inputs,
     load_passthrough_source_frames,
 )
 from app.workers.graph_write_planner import build_graph_write_plan_targets
@@ -675,44 +676,12 @@ class InferenceWorker(QObject):
 
     def _gather_node_inputs(self, nodes_by_id: dict, edges: list[GraphEdge], node_id: str, outputs: dict, initial_frames: list) -> dict:
         """Собрать входные данные для узла из выходов предыдущих узлов."""
-        inputs = {}
-
-        # Get all edges that point to this node
-        for edge in edges:
-            if edge.dst_id == node_id:
-                src_node_id = edge.src_id
-                src_port = str(edge.src_port or "").strip().lower()
-                dst_port = edge.dst_port
-                dst_node = nodes_by_id.get(node_id)
-                src_node = nodes_by_id.get(src_node_id)
-                if not src_port:
-                    src_node_type = str(getattr(src_node, "type", "") or "").strip().lower()
-                    from app.node_graph.specs import get_node_spec
-                    src_spec = get_node_spec(src_node_type)
-                    if src_spec is not None and len(src_spec.outputs) == 1:
-                        src_port = str(src_spec.outputs[0].name or "out").strip().lower() or "out"
-                    else:
-                        src_port = "out"
-                if str(getattr(dst_node, "type", "") or "") == "export" and not str(dst_port or "").strip():
-                    dst_port = "in"
-
-                # Get data from source node output
-                if src_node_id in outputs:
-                    src_output = outputs[src_node_id]
-                    if isinstance(src_output, dict) and src_port in src_output:
-                        inputs[dst_port] = src_output[src_port]
-                        inputs[f"__src_port__{dst_port}"] = src_port
-                        inputs[f"__src_node_type__{dst_port}"] = str(getattr(src_node, "type", "") or "")
-                        inputs[f"__src_node_title__{dst_port}"] = str(getattr(src_node, "title", "") or "")
-                        src_meta = src_output.get("__meta__") if isinstance(src_output, dict) else None
-                        if isinstance(src_meta, dict) and src_port in src_meta:
-                            inputs[f"__meta__{dst_port}"] = src_meta[src_port]
-                else:
-                    self.log_message.emit(
-                        self._tr("worker_graph_source_not_ready").format(node_id=src_node_id)
-                    )
-
-        return inputs
+        gathered = gather_graph_node_inputs(nodes_by_id, edges, node_id, outputs)
+        for src_node_id in gathered.missing_source_ids:
+            self.log_message.emit(
+                self._tr("worker_graph_source_not_ready").format(node_id=src_node_id)
+            )
+        return gathered.inputs
 
     def _resolve_requested_output_ports(self, node_id: str, default_ports: set[str]) -> set[str]:
         """Return node output ports that are actually consumed by enabled downstream nodes."""

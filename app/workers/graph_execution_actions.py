@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.node_graph.models import GraphEdge, GraphNode
+from app.node_graph.specs import get_node_spec
 from app.utils.media import is_numbered_image_sequence, load_image_float
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,12 @@ logger = logging.getLogger(__name__)
 class PassthroughSourceFrames:
     frames: list
     log_message: str | None = None
+
+
+@dataclass(frozen=True)
+class GatheredNodeInputs:
+    inputs: dict[Any, Any]
+    missing_source_ids: tuple[Any, ...] = ()
 
 
 def build_graph_downstream_targets(
@@ -37,6 +44,54 @@ def build_graph_downstream_targets(
             }
         )
     return targets
+
+
+def gather_graph_node_inputs(
+    nodes_by_id: dict[Any, GraphNode],
+    edges: list[GraphEdge],
+    node_id: Any,
+    outputs: dict[Any, Any],
+) -> GatheredNodeInputs:
+    inputs: dict[Any, Any] = {}
+    missing_source_ids: list[Any] = []
+
+    for edge in edges:
+        if edge.dst_id != node_id:
+            continue
+
+        src_node_id = edge.src_id
+        src_port = str(edge.src_port or "").strip().lower()
+        dst_port = edge.dst_port
+        dst_node = nodes_by_id.get(node_id)
+        src_node = nodes_by_id.get(src_node_id)
+
+        if not src_port:
+            src_node_type = str(getattr(src_node, "type", "") or "").strip().lower()
+            src_spec = get_node_spec(src_node_type)
+            if src_spec is not None and len(src_spec.outputs) == 1:
+                src_port = str(src_spec.outputs[0].name or "out").strip().lower() or "out"
+            else:
+                src_port = "out"
+        if str(getattr(dst_node, "type", "") or "") == "export" and not str(dst_port or "").strip():
+            dst_port = "in"
+
+        if src_node_id not in outputs:
+            missing_source_ids.append(src_node_id)
+            continue
+
+        src_output = outputs[src_node_id]
+        if not isinstance(src_output, dict) or src_port not in src_output:
+            continue
+
+        inputs[dst_port] = src_output[src_port]
+        inputs[f"__src_port__{dst_port}"] = src_port
+        inputs[f"__src_node_type__{dst_port}"] = str(getattr(src_node, "type", "") or "")
+        inputs[f"__src_node_title__{dst_port}"] = str(getattr(src_node, "title", "") or "")
+        src_meta = src_output.get("__meta__")
+        if isinstance(src_meta, dict) and src_port in src_meta:
+            inputs[f"__meta__{dst_port}"] = src_meta[src_port]
+
+    return GatheredNodeInputs(inputs, tuple(missing_source_ids))
 
 
 def build_passthrough_source_output(

@@ -28,6 +28,7 @@ from app.workers.graph_execution_actions import (
     build_graph_downstream_targets,
     build_passthrough_source_output,
     format_deferred_action_log,
+    gather_graph_node_inputs,
     load_passthrough_source_frames,
 )
 from app.workers.graph_write_planner import build_graph_write_plan_targets
@@ -346,6 +347,55 @@ class GraphExecutionActionHelperTests(unittest.TestCase):
 
         self.assertIs(result.frames, frames)
         self.assertIsNone(result.log_message)
+
+    def test_gather_graph_node_inputs_routes_data_and_source_metadata(self):
+        frames = _frames(1)
+        nodes = {
+            "src_1": GraphNode(id="src_1", type="source", title="Source Clip"),
+            "exp_1": GraphNode(id="exp_1", type="export", title="Write"),
+        }
+        edges = [GraphEdge(src_id="src_1", dst_id="exp_1", src_port="out", dst_port="")]
+        outputs = {
+            "src_1": {
+                "out": frames,
+                "__meta__": {"out": {"bbox_sequence": [(0, 0, 4, 4)]}},
+            }
+        }
+
+        gathered = gather_graph_node_inputs(nodes, edges, "exp_1", outputs)
+
+        self.assertIs(gathered.inputs["in"], frames)
+        self.assertEqual(gathered.inputs["__src_port__in"], "out")
+        self.assertEqual(gathered.inputs["__src_node_type__in"], "source")
+        self.assertEqual(gathered.inputs["__src_node_title__in"], "Source Clip")
+        self.assertEqual(gathered.inputs["__meta__in"], {"bbox_sequence": [(0, 0, 4, 4)]})
+        self.assertEqual(gathered.missing_source_ids, ())
+
+    def test_gather_graph_node_inputs_resolves_blank_single_output_source_port(self):
+        frames = _frames(1)
+        nodes = {
+            "src_1": GraphNode(id="src_1", type="source", title="S"),
+            "exp_1": GraphNode(id="exp_1", type="export", title="E"),
+        }
+        edges = [GraphEdge(src_id="src_1", dst_id="exp_1", src_port="", dst_port="in")]
+        outputs = {"src_1": {"out": frames}}
+
+        gathered = gather_graph_node_inputs(nodes, edges, "exp_1", outputs)
+
+        self.assertIs(gathered.inputs["in"], frames)
+        self.assertEqual(gathered.inputs["__src_port__in"], "out")
+
+    def test_gather_graph_node_inputs_reports_missing_sources(self):
+        nodes = {
+            "src_1": GraphNode(id="src_1", type="source", title="S"),
+            "exp_1": GraphNode(id="exp_1", type="export", title="E"),
+        }
+        edges = [GraphEdge(src_id="src_1", dst_id="exp_1", src_port="out", dst_port="in")]
+
+        gathered = gather_graph_node_inputs(nodes, edges, "exp_1", {})
+
+        self.assertEqual(gathered.inputs, {})
+        self.assertEqual(gathered.missing_source_ids, ("src_1",))
 
 
 class ThreeNodeGraphTests(unittest.TestCase):
