@@ -34,6 +34,7 @@ from app.workers.graph_execution_actions import (
     format_deferred_action_log,
     gather_graph_node_inputs,
     load_passthrough_source_frames,
+    resolve_requested_output_ports,
 )
 from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.workers.graph_write_streamer import (
@@ -685,22 +686,11 @@ class InferenceWorker(QObject):
 
     def _resolve_requested_output_ports(self, node_id: str, default_ports: set[str]) -> set[str]:
         """Return node output ports that are actually consumed by enabled downstream nodes."""
-        targets = getattr(self, "_graph_downstream_targets", {}) or {}
-        requested: set[str] = set()
-        node_id_str = str(node_id)
-        for (src_node_id, src_port), downstream in targets.items():
-            if str(src_node_id) != node_id_str:
-                continue
-            if not isinstance(downstream, list):
-                continue
-            if any(bool(item.get("dst_enabled", True)) for item in downstream if isinstance(item, dict)):
-                port = str(src_port or "").strip().lower()
-                if port:
-                    requested.add(port)
-
-        if not requested:
-            return set(default_ports)
-        return requested & set(default_ports)
+        return resolve_requested_output_ports(
+            getattr(self, "_graph_downstream_targets", {}) or {},
+            node_id,
+            default_ports,
+        )
 
     def _save_node_graph_results(
         self,

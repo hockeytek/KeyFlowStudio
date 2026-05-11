@@ -94,6 +94,28 @@ def gather_graph_node_inputs(
     return GatheredNodeInputs(inputs, tuple(missing_source_ids))
 
 
+def resolve_requested_output_ports(
+    downstream_targets: dict[tuple[Any, Any], Any],
+    node_id: Any,
+    default_ports: set[str],
+) -> set[str]:
+    requested: set[str] = set()
+    node_id_str = str(node_id)
+    for (src_node_id, src_port), downstream in (downstream_targets or {}).items():
+        if str(src_node_id) != node_id_str:
+            continue
+        if not isinstance(downstream, list):
+            continue
+        if any(bool(item.get("dst_enabled", True)) for item in downstream if isinstance(item, dict)):
+            port = str(src_port or "").strip().lower()
+            if port:
+                requested.add(port)
+
+    if not requested:
+        return set(default_ports)
+    return requested & set(default_ports)
+
+
 def build_passthrough_source_output(
     node_frames: list,
     frame_bbox: Callable[[Any], tuple[int, int, int, int]],

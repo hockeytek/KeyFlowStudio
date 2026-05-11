@@ -30,6 +30,7 @@ from app.workers.graph_execution_actions import (
     format_deferred_action_log,
     gather_graph_node_inputs,
     load_passthrough_source_frames,
+    resolve_requested_output_ports,
 )
 from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.workers.inference_worker import (
@@ -396,6 +397,27 @@ class GraphExecutionActionHelperTests(unittest.TestCase):
 
         self.assertEqual(gathered.inputs, {})
         self.assertEqual(gathered.missing_source_ids, ("src_1",))
+
+    def test_resolve_requested_output_ports_filters_enabled_downstream_ports(self):
+        targets = {
+            ("ck_1", "alpha"): [{"dst_enabled": True}],
+            ("ck_1", "comp"): [{"dst_enabled": False}],
+            ("other", "fg"): [{"dst_enabled": True}],
+        }
+
+        requested = resolve_requested_output_ports(targets, "ck_1", {"alpha", "fg", "comp", "processed"})
+
+        self.assertEqual(requested, {"alpha"})
+
+    def test_resolve_requested_output_ports_falls_back_to_defaults_when_none_enabled(self):
+        targets = {
+            ("ck_1", "alpha"): [{"dst_enabled": False}],
+        }
+        defaults = {"alpha", "fg"}
+
+        requested = resolve_requested_output_ports(targets, "ck_1", defaults)
+
+        self.assertEqual(requested, defaults)
 
 
 class ThreeNodeGraphTests(unittest.TestCase):
