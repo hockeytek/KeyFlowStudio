@@ -25,6 +25,13 @@ pip install -r requirements.txt
 
 The pinned defaults in `requirements.txt` are chosen for development compatibility, including Intel macOS constraints. For CUDA systems, install a PyTorch build that matches your NVIDIA driver and CUDA runtime before installing model-specific packages.
 
+Current compatibility baseline:
+
+- Local development and regression checks have been run on an older Intel i7 Mac in CPU mode.
+- The EC2/server worker path has been tested with NVIDIA CUDA for end-to-end model workflows.
+- Intel macOS `x86_64` intentionally uses older PyTorch/torchvision pins, `numpy<2`, and selected dependency ceilings so the project can still run on that older architecture.
+- Some model packages require local workarounds or patch files. See `scripts/install_sam2_intel_workaround.sh`, `ec2_worker/_patch/`, and [models.md](models.md).
+
 Some model workflows may require extra upstream packages, private tokens, or license acceptance. See [models.md](models.md) for model cache and weight behavior.
 
 ## 4. Install FFmpeg

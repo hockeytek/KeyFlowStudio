@@ -50,6 +50,15 @@ Acceleration options:
 - NVIDIA GPU: CUDA-compatible PyTorch build.
 - CPU: useful for tests and lightweight smoke checks, but slow for production video inference.
 
+## Tested Environments
+
+Current validation has been done in two practical environments:
+
+- Local development: Intel macOS on an older i7 Mac, running the app and regression suite in CPU mode.
+- Cloud/server worker: NVIDIA CUDA GPU worker, used for end-to-end model workflow checks.
+
+The Intel macOS path uses compatibility pins and small integration patches where newer upstream packages no longer support older architecture constraints cleanly. In particular, the project pins older PyTorch/torchvision on `darwin x86_64`, keeps `numpy<2` there, constrains GVM-related `diffusers`, and includes helper patches/workarounds for model packages that assume newer Linux/CUDA-oriented stacks. See [docs/installation.md](docs/installation.md) and [docs/models.md](docs/models.md) before treating this as a universal production support matrix.
+
 ## Quick Start
 
 ```bash
@@ -77,6 +86,12 @@ Model weights are intentionally not stored in this repository. Downloaded weight
 KeyFlow Studio checks the configured model cache at runtime and downloads supported weights automatically when they are available from the configured upstream source. Models that require manual license acceptance, private tokens, or external setup should be configured through their model-specific instructions.
 
 Typical local model locations are managed by the application settings or by `KEYFLOW_MODELS_DIR`. See [docs/models.md](docs/models.md) for details.
+
+## Third-Party Models
+
+KeyFlow Studio is an orchestration UI/runtime around several third-party model projects. Those projects and their authors retain their own copyrights, licenses, model terms, checkpoints, and trademarks. This repository does not claim ownership of the upstream models or weights.
+
+Integrated or supported workflows include CorridorKey by `nikopueringer`, BiRefNet by `ZhengPeng7`, GVM by `geyongtao`, MatAnyone2 by `pq-yang`, and Meta/Facebook Research SAM-family models where installed by the user. See [docs/models.md](docs/models.md) for links and attribution details.
 
 ## Cloud GPU Worker
 
