@@ -292,9 +292,9 @@ python test_stage6_integration.py
 ## Документация и onboarding — обновлено
 
 За пределами исходного Stage 6 уже выполнено:
-- введен единый стандарт нод: [docs/NODE_GRAPH_STANDARD.md](docs/NODE_GRAPH_STANDARD.md)
-- вынесен компактный roadmap: [docs/plans/plan-nodeGraphStandardization.prompt.md](docs/plans/plan-nodeGraphStandardization.prompt.md)
-- обновлены [ARCHITECTURE.md](ARCHITECTURE.md), [README.md](README.md) и [QUICKSTART.md](QUICKSTART.md)
+- введен единый стандарт нод: [docs/NODE_GRAPH_STANDARD.md](../NODE_GRAPH_STANDARD.md)
+- вынесен компактный roadmap: [docs/archive/plan-nodeGraphStandardization.prompt.md](plan-nodeGraphStandardization.prompt.md)
+- обновлены [ARCHITECTURE.md](../../ARCHITECTURE.md), [README.md](../../README.md) и [QUICKSTART.md](../../QUICKSTART.md)
 
 ---
 

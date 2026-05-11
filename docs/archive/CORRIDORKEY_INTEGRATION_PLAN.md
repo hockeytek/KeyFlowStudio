@@ -1270,7 +1270,7 @@ tests/
 
 requirements.txt                       (обновить)
 main.py                               (обновить)
-CORRIDORKEY_INTEGRATION_PLAN.md       (этот файл)
+docs/archive/CORRIDORKEY_INTEGRATION_PLAN.md       (этот файл)
 ```
 
 ---

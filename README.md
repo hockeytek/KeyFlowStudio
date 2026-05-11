@@ -130,6 +130,7 @@ Optional device override:
 - [Model Setup](docs/models.md)
 - [Cloud GPU Setup](docs/cloud-gpu.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
+- [Legacy Planning Archive](docs/archive/)
 - [Russian README](docs/README.ru.md)
 
 ## Security
