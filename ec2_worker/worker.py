@@ -893,6 +893,27 @@ def _run_birefnet(job: Job):
 # These are the allowed middle nodes between them.
 _CLOUD_PROCESSING_TYPES: set[str] = {"gvm", "corridorkey"}
 
+_CLOUD_GVM_DEFAULTS: dict[str, Any] = {
+    "num_frames_per_batch": 8,
+    "denoise_steps": 1,
+    "decode_chunk_size": 4,
+    "num_overlap_frames": 1,
+    "num_interp_frames": 1,
+    "noise_type": "zeros",
+    "use_clip_img_emb": False,
+    "dilate_radius": 0,
+}
+
+_CLOUD_CORRIDORKEY_DEFAULTS: dict[str, Any] = {
+    "despill_strength": 0.5,
+    "despeckle": True,
+    "despeckle_size": 400,
+    "refiner_strength": 1.0,
+    "use_refiner": True,
+    "hint_dilate_radius": 0,
+    "input_colorspace": "auto",
+}
+
 
 def _validate_supported_graph(graph: dict) -> None:
     """Validate the graph follows the Source → [processing nodes] → Export architecture.
@@ -1082,8 +1103,9 @@ def _run_corridorkey_phase(
     for out_dir in output_dirs.values():
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    hint_dilate_radius = int(corridorkey_props.get("hint_dilate_radius", 0))
-    input_colorspace = str(corridorkey_props.get("input_colorspace", "auto")).strip().lower()
+    ck_defaults = _CLOUD_CORRIDORKEY_DEFAULTS
+    hint_dilate_radius = int(corridorkey_props.get("hint_dilate_radius", ck_defaults["hint_dilate_radius"]))
+    input_colorspace = str(corridorkey_props.get("input_colorspace", ck_defaults["input_colorspace"])).strip().lower()
     input_is_linear = input_colorspace == "linear"
 
     service = _get_corridorkey_service()
@@ -1197,11 +1219,11 @@ def _run_corridorkey_phase(
             result = service.process_frame(
                 image=frame_rgb,
                 alpha_hint=mask_linear,
-                despill_strength=float(corridorkey_props.get("despill_strength", 0.5)),
-                despeckle=bool(corridorkey_props.get("despeckle", True)),
-                despeckle_size=int(corridorkey_props.get("despeckle_size", 400)),
-                refiner_strength=float(corridorkey_props.get("refiner_strength", 1.0)),
-                use_refiner=bool(corridorkey_props.get("use_refiner", True)),
+                despill_strength=float(corridorkey_props.get("despill_strength", ck_defaults["despill_strength"])),
+                despeckle=bool(corridorkey_props.get("despeckle", ck_defaults["despeckle"])),
+                despeckle_size=int(corridorkey_props.get("despeckle_size", ck_defaults["despeckle_size"])),
+                refiner_strength=float(corridorkey_props.get("refiner_strength", ck_defaults["refiner_strength"])),
+                use_refiner=bool(corridorkey_props.get("use_refiner", ck_defaults["use_refiner"])),
                 input_is_linear=input_is_linear,
             )
 
@@ -1249,11 +1271,11 @@ def _run_corridorkey_phase(
                 result = service.process_frame(
                     image=frame_rgb,
                     alpha_hint=mask_linear,
-                    despill_strength=float(corridorkey_props.get("despill_strength", 0.5)),
-                    despeckle=bool(corridorkey_props.get("despeckle", True)),
-                    despeckle_size=int(corridorkey_props.get("despeckle_size", 400)),
-                    refiner_strength=float(corridorkey_props.get("refiner_strength", 1.0)),
-                    use_refiner=bool(corridorkey_props.get("use_refiner", True)),
+                    despill_strength=float(corridorkey_props.get("despill_strength", ck_defaults["despill_strength"])),
+                    despeckle=bool(corridorkey_props.get("despeckle", ck_defaults["despeckle"])),
+                    despeckle_size=int(corridorkey_props.get("despeckle_size", ck_defaults["despeckle_size"])),
+                    refiner_strength=float(corridorkey_props.get("refiner_strength", ck_defaults["refiner_strength"])),
+                    use_refiner=bool(corridorkey_props.get("use_refiner", ck_defaults["use_refiner"])),
                     input_is_linear=input_is_linear,
                 )
                 for output_port in sorted(output_dirs):
@@ -1367,7 +1389,8 @@ def _run_node_graph(job: Job):
                 gvm_props = dict(_n.get("properties") or {})
                 break
 
-        _batch_size = int(gvm_props.get("num_frames_per_batch", 8))
+        gvm_defaults = _CLOUD_GVM_DEFAULTS
+        _batch_size = int(gvm_props.get("num_frames_per_batch", gvm_defaults["num_frames_per_batch"]))
 
         def _on_progress(done_frames: int, total_frames: int) -> None:
             pct = max(15, min(92, 15 + int((done_frames / max(total_frames, 1)) * 77)))
@@ -1387,12 +1410,13 @@ def _run_node_graph(job: Job):
             output_dir=alpha_dir,
             progress_callback=_on_progress,
             num_frames_per_batch=_batch_size,
-            decode_chunk_size=int(gvm_props.get("decode_chunk_size", 4)),
-            num_overlap_frames=int(gvm_props.get("num_overlap_frames", 1)),
-            num_interp_frames=int(gvm_props.get("num_interp_frames", 1)),
-            noise_type=str(gvm_props.get("noise_type", "zeros")),
-            use_clip_img_emb=bool(gvm_props.get("use_clip_img_emb", False)),
-            dilate_radius=int(gvm_props.get("dilate_radius", 0)),
+            denoise_steps=int(gvm_props.get("denoise_steps", gvm_defaults["denoise_steps"])),
+            decode_chunk_size=int(gvm_props.get("decode_chunk_size", gvm_defaults["decode_chunk_size"])),
+            num_overlap_frames=int(gvm_props.get("num_overlap_frames", gvm_defaults["num_overlap_frames"])),
+            num_interp_frames=int(gvm_props.get("num_interp_frames", gvm_defaults["num_interp_frames"])),
+            noise_type=str(gvm_props.get("noise_type", gvm_defaults["noise_type"])),
+            use_clip_img_emb=bool(gvm_props.get("use_clip_img_emb", gvm_defaults["use_clip_img_emb"])),
+            dilate_radius=int(gvm_props.get("dilate_radius", gvm_defaults["dilate_radius"])),
         )
 
         if job._cancel_event.is_set():
@@ -1639,6 +1663,7 @@ class _WorkerGVMService:
         output_dir: Path,
         progress_callback,
         num_frames_per_batch: int = 8,
+        denoise_steps: int = 1,
         decode_chunk_size: int = 4,
         num_overlap_frames: int = 1,
         num_interp_frames: int = 1,
@@ -1674,7 +1699,7 @@ class _WorkerGVMService:
             input_path=str(input_path),
             output_dir=str(output_dir),
             num_frames_per_batch=num_frames_per_batch,
-            denoise_steps=1,
+            denoise_steps=denoise_steps,
             decode_chunk_size=decode_chunk_size,
             num_overlap_frames=num_overlap_frames,
             num_interp_frames=num_interp_frames,

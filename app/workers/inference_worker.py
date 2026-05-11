@@ -2429,6 +2429,7 @@ class InferenceWorker(QObject):
 
         properties = node_data.get("properties", {})
         num_frames_per_batch = max(1, int(properties.get("num_frames_per_batch", 8) or 8))
+        denoise_steps = max(1, int(properties.get("denoise_steps", 1) or 1))
         decode_chunk_size = max(1, int(properties.get("decode_chunk_size", 4) or 4))
         num_overlap_frames = max(0, int(properties.get("num_overlap_frames", 1) if properties.get("num_overlap_frames") is not None else 1))
         num_interp_frames = max(0, int(properties.get("num_interp_frames", 1) if properties.get("num_interp_frames") is not None else 1))
@@ -2526,6 +2527,7 @@ class InferenceWorker(QObject):
             tmp_input_dir,
             disk_sequence_dir,
             num_frames_per_batch=num_frames_per_batch,
+            denoise_steps=denoise_steps,
             decode_chunk_size=decode_chunk_size,
             num_overlap_frames=num_overlap_frames,
             num_interp_frames=num_interp_frames,

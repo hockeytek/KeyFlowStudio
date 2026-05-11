@@ -327,6 +327,7 @@ class GVMExecuteNodeTests(unittest.TestCase):
                 "id": "gvm_1",
                 "properties": {
                     "num_frames_per_batch": 4,
+                    "denoise_steps": 2,
                     "decode_chunk_size": 2,
                     "num_overlap_frames": 2,
                     "num_interp_frames": 0,
@@ -337,6 +338,7 @@ class GVMExecuteNodeTests(unittest.TestCase):
 
         call_kwargs = mock_svc.process_sequence.call_args
         self.assertEqual(call_kwargs.kwargs.get("num_frames_per_batch"), 4)
+        self.assertEqual(call_kwargs.kwargs.get("denoise_steps"), 2)
         self.assertEqual(call_kwargs.kwargs.get("decode_chunk_size"), 2)
         self.assertEqual(call_kwargs.kwargs.get("num_overlap_frames"), 2)
         self.assertEqual(call_kwargs.kwargs.get("num_interp_frames"), 0)
