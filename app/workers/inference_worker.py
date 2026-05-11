@@ -27,6 +27,12 @@ from app.services.gvm_service import GVMService
 from app.services.sam3_service import Sam3Service
 from app.node_graph.diagnostics import format_graph_diagnostics_summary, format_graph_diagnostics_text
 from app.node_graph.models import GraphNode, GraphEdge
+from app.workers.graph_execution_actions import (
+    build_deferred_action_output,
+    build_graph_downstream_targets,
+    build_passthrough_source_output,
+    format_deferred_action_log,
+)
 from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.workers.graph_write_streamer import (
     finalize_graph_write_plan,
@@ -560,18 +566,7 @@ class InferenceWorker(QObject):
 
         # Build node lookup
         nodes_by_id = {node.id: node for node in nodes}
-        self._graph_downstream_targets = {}
-        for edge in edges:
-            src_key = (str(edge.src_id), str(edge.src_port or "").strip().lower())
-            dst_node = nodes_by_id.get(edge.dst_id)
-            self._graph_downstream_targets.setdefault(src_key, []).append(
-                {
-                    "dst_id": str(edge.dst_id),
-                    "dst_port": str(edge.dst_port or "").strip().lower(),
-                    "dst_type": str(getattr(dst_node, "type", "") or "").strip().lower(),
-                    "dst_enabled": bool(getattr(dst_node, "enabled", True)) if dst_node is not None else True,
-                }
-            )
+        self._graph_downstream_targets = build_graph_downstream_targets(nodes_by_id, edges)
 
         topo_order = list(plan.execution_order)
         logger.info(f"Executing nodes in order: {topo_order}")
@@ -640,33 +635,14 @@ class InferenceWorker(QObject):
                         node_frames = frames
                 else:
                     node_frames = frames
-                bbox_sequence = [self._frame_bbox(frame) for frame in node_frames] if node_frames else []
-                port_meta = {"bbox_sequence": bbox_sequence}
-                outputs[node_id] = {
-                    "out": node_frames,
-                    "image": node_frames,
-                    "frame_sequence": node_frames,
-                    "__meta__": {
-                        "out": dict(port_meta),
-                        "image": dict(port_meta),
-                        "frame_sequence": dict(port_meta),
-                    },
-                }
+                outputs[node_id] = build_passthrough_source_output(node_frames, self._frame_bbox)
                 continue
 
             if action == "deferred":
                 deferred_type = nodes_by_id.get(node_id)
                 deferred_type_str = deferred_type.type if deferred_type is not None else "unknown"
-                if deferred_type_str in {"sam2"}:
-                    outputs[node_id] = {"__deferred_sam_disk__": True, "out": None, "mask": None}
-                    self.log_message.emit(
-                        f"SAM2 node {node_id}: deferred (disk-streaming masks into CorridorKey)"
-                    )
-                else:
-                    outputs[node_id] = {"__deferred_staged__": True, "alpha": None}
-                    self.log_message.emit(
-                        f"BiRefNet node {node_id}: deferred (staged into CorridorKey)"
-                    )
+                outputs[node_id] = build_deferred_action_output(deferred_type_str)
+                self.log_message.emit(format_deferred_action_log(node_id, deferred_type_str))
                 continue
 
             if action == "write_sink":

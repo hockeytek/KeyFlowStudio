@@ -23,6 +23,12 @@ import numpy as np
 
 from app.node_graph.models import GraphEdge, GraphNode
 from app.utils.write_paths import get_port_output_label, resolve_graph_write_output_dir
+from app.workers.graph_execution_actions import (
+    build_deferred_action_output,
+    build_graph_downstream_targets,
+    build_passthrough_source_output,
+    format_deferred_action_log,
+)
 from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.workers.inference_worker import (
     InferenceWorker,
@@ -260,6 +266,46 @@ class MinimalGraphExecutionTests(unittest.TestCase):
 
             self.assertIn("alpha", result)
             self.assertFalse(staged_dir.exists())
+
+class GraphExecutionActionHelperTests(unittest.TestCase):
+    def test_build_graph_downstream_targets_records_ports_types_and_enabled_state(self):
+        nodes_by_id = {
+            "src_1": GraphNode(id="src_1", type="source", title="S"),
+            "exp_1": GraphNode(id="exp_1", type="export", title="E", enabled=False),
+        }
+        edges = [GraphEdge(src_id="src_1", dst_id="exp_1", src_port="out", dst_port="in")]
+
+        targets = build_graph_downstream_targets(nodes_by_id, edges)
+
+        self.assertEqual(list(targets), [("src_1", "out")])
+        self.assertEqual(
+            targets[("src_1", "out")],
+            [
+                {
+                    "dst_id": "exp_1",
+                    "dst_port": "in",
+                    "dst_type": "export",
+                    "dst_enabled": False,
+                }
+            ],
+        )
+
+    def test_build_passthrough_source_output_preserves_frame_aliases_and_bbox_meta(self):
+        frames = _frames(2, h=4, w=5)
+
+        output = build_passthrough_source_output(frames, lambda _frame: (1, 2, 3, 4))
+
+        self.assertIs(output["out"], frames)
+        self.assertIs(output["image"], frames)
+        self.assertIs(output["frame_sequence"], frames)
+        self.assertEqual(output["__meta__"]["out"]["bbox_sequence"], [(1, 2, 3, 4), (1, 2, 3, 4)])
+        self.assertEqual(output["__meta__"]["image"], output["__meta__"]["out"])
+
+    def test_deferred_action_helpers_match_sam_and_staged_payloads(self):
+        self.assertEqual(build_deferred_action_output("sam2"), {"__deferred_sam_disk__": True, "out": None, "mask": None})
+        self.assertEqual(build_deferred_action_output("birefnet"), {"__deferred_staged__": True, "alpha": None})
+        self.assertIn("SAM2 node sam_1", format_deferred_action_log("sam_1", "sam2"))
+        self.assertIn("BiRefNet node biref_1", format_deferred_action_log("biref_1", "birefnet"))
 
 
 class ThreeNodeGraphTests(unittest.TestCase):
