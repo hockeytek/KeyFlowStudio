@@ -1,8 +1,7 @@
 """Stage 6.2 — Performance profiling script.
 
 Запуск:
-    cd /Volumes/MAC\ MEDIA/Temp/KeyFlowStudio
-    KEYFLOW_DEVICE=cpu python scripts/stage62_profiling.py [--frames N] [--verbose]
+    KEYFLOW_DEVICE=cpu python scripts/archive/stage62_profiling.py [--frames N] [--verbose]
 
 Измеряет:
   • Время создания/валидации/топосортировки графа

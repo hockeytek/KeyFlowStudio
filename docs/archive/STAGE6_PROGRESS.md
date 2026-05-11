@@ -162,7 +162,7 @@ use_refiner = registry.corridorkey_use_refiner()
 
 ### Этап 6.2: Профилирование производительности — ЗАВЕРШЕН ✅
 
-Реализован скрипт `scripts/stage62_profiling.py`. Базовые результаты на CPU (8 ядер):
+Реализован скрипт `scripts/archive/stage62_profiling.py`. Базовые результаты на CPU (8 ядер):
 
 | Операция | Время |
 |----------|-------|
@@ -175,7 +175,7 @@ use_refiner = registry.corridorkey_use_refiner()
 
 Пропускная способность passthrough-графа: **>600,000 кадров/с** (Graph Engine overhead пренебрежимо мал относительно реального инференса).
 
-Запуск: `KEYFLOW_DEVICE=cpu python scripts/stage62_profiling.py [--frames N] [--verbose]`
+Запуск: `KEYFLOW_DEVICE=cpu python scripts/archive/stage62_profiling.py [--frames N] [--verbose]`
 
 ### Этап 6.3: Сигналы прогресса и отмена — ЗАВЕРШЕН ✅
 

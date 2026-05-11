@@ -103,7 +103,7 @@ def main() -> int:
     print("[INFO] Loading model and running deterministic synthetic checks...")
 
     service = InferenceService()
-        model_dir = get_model_variant_dir("matanyone2", MODEL_VARIANT)
+    model_dir = get_model_variant_dir("matanyone2", MODEL_VARIANT)
     model_file = Path(MODEL_URL).name
     model_path = model_dir / model_file
     print(f"[INFO] Expected model path: {model_path}")
