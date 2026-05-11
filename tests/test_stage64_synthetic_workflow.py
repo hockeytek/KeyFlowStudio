@@ -8,7 +8,7 @@
   - source → load → export (трёхнодовый граф)
   - Корректность outputs после passthrough-выполнения
   - Сохранение плана записи через _prepare_graph_write_targets
-  - Корректный выход _resolve_graph_write_output_dir
+    - Корректный выход resolve_graph_write_output_dir
     - Корректный stem _build_keyflow_output_dir для разных типов источников
 """
 import os
@@ -22,6 +22,7 @@ os.environ.setdefault("KEYFLOW_DEVICE", "cpu")
 import numpy as np
 
 from app.node_graph.models import GraphEdge, GraphNode
+from app.utils.write_paths import get_port_output_label, resolve_graph_write_output_dir
 from app.workers.inference_worker import (
     InferenceWorker,
     _build_keyflow_output_dir,
@@ -317,7 +318,7 @@ class ThreeNodeGraphTests(unittest.TestCase):
 
 
 class WritePlanTests(unittest.TestCase):
-    """_prepare_graph_write_targets и _resolve_graph_write_output_dir."""
+    """_prepare_graph_write_targets и resolve_graph_write_output_dir."""
 
     def test_prepare_write_targets_creates_empty_plans(self):
         worker = _make_worker()
@@ -355,21 +356,25 @@ class WritePlanTests(unittest.TestCase):
     def test_resolve_auto_output_dir_uses_output_dir(self):
         base = Path("/tmp/test_out")
         write_cfg = {"auto_output_dir": True}
-        result = InferenceWorker._resolve_graph_write_output_dir(write_cfg, base, "alpha")
+        result = resolve_graph_write_output_dir(write_cfg, base, "alpha")
         self.assertEqual(result, base / "alpha")
 
     def test_resolve_custom_output_dir(self):
         base = Path("/tmp/test_out")
         write_cfg = {"auto_output_dir": False, "output_dir": "/custom/path"}
-        result = InferenceWorker._resolve_graph_write_output_dir(write_cfg, base, "alpha")
+        result = resolve_graph_write_output_dir(write_cfg, base, "alpha")
         self.assertEqual(result, Path("/custom/path"))
 
     def test_resolve_auto_false_empty_dir_fallback(self):
         """auto_output_dir=False но output_dir пустой → fallback на base/stream."""
         base = Path("/tmp/test_out")
         write_cfg = {"auto_output_dir": False, "output_dir": ""}
-        result = InferenceWorker._resolve_graph_write_output_dir(write_cfg, base, "fg")
+        result = resolve_graph_write_output_dir(write_cfg, base, "fg")
         self.assertEqual(result, base / "fg")
+
+    def test_get_port_output_label_uses_node_spec_or_fallback(self):
+        self.assertEqual(get_port_output_label("source", "out"), "img")
+        self.assertEqual(get_port_output_label("unknown", "premult_rgba"), "Premult Rgba")
 
 
 class BuildKeyflowOutputDirTests(unittest.TestCase):

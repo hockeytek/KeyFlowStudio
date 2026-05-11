@@ -51,7 +51,12 @@ from app.utils.write_output import (
     to_u8_frame,
     is_normalized_float_range,
 )
-from app.utils.write_paths import build_graph_write_output_dir, build_keyflow_output_dir, normalize_write_stream_name
+from app.utils.write_paths import (
+    build_keyflow_output_dir,
+    get_port_output_label,
+    normalize_write_stream_name,
+    resolve_graph_write_output_dir,
+)
 import app.node_graph.engine as engine_module
 from app.runtime_contract import (
     RUNTIME_CANCEL_CLEANUP_PARTIAL,
@@ -810,11 +815,11 @@ class InferenceWorker(QObject):
             source_node_type = str(node_output.get("__src_node_type__in", "")).strip().lower()
             source_node_title = str(node_output.get("__src_node_title__in", "")).strip()
             stream_label = normalize_write_stream_name(source_node_type=source_node_type, source_port=source_port)
-            port_label = self._get_port_output_label(source_node_type, source_port)
+            port_label = get_port_output_label(source_node_type, source_port)
 
             write_cfg = dict(node.properties or {})
             write_cfg["output_dir"] = str(
-                self._resolve_graph_write_output_dir(write_cfg, output_dir, stream_label, source_node_title, port_label)
+                resolve_graph_write_output_dir(write_cfg, output_dir, stream_label, source_node_title, port_label)
             )
             is_video = len(rendered_frames) > 1
 
@@ -832,35 +837,6 @@ class InferenceWorker(QObject):
             self.log_message.emit(f"Write node {node_id}: saved {stream_label} -> {saved_path}")
 
         return saved_paths
-
-    @staticmethod
-    def _resolve_graph_write_stream_label_from_edge(src_port: str, source_node_type: str = "") -> str:
-        return normalize_write_stream_name(source_node_type=source_node_type, source_port=src_port)
-
-    @staticmethod
-    def _get_port_output_label(node_type: str, port_name: str) -> str:
-        """Return the display label for an output port from its spec, or a prettified fallback."""
-        from app.node_graph.specs import get_node_spec
-        spec = get_node_spec(str(node_type).strip().lower())
-        if spec is not None:
-            for port in (spec.outputs or ()):
-                if str(port.name) == str(port_name):
-                    return str(port.label) if port.label else str(port_name).replace("_", " ").title()
-        return str(port_name).replace("_", " ").title()
-
-    @staticmethod
-    def _resolve_graph_write_output_dir(write_cfg: dict, output_dir: Path, stream_label: str, source_node_title: str = "", port_label: str = "") -> Path:
-        custom_dir = str(write_cfg.get("output_dir", "")).strip()
-        auto_output_dir = bool(write_cfg.get("auto_output_dir", True))
-        if not auto_output_dir and custom_dir:
-            # User explicitly chose a directory — use it as-is without appending stream
-            return Path(custom_dir)
-        return build_graph_write_output_dir(
-            output_dir,
-            source_node_title=source_node_title,
-            port_label=port_label,
-            stream_label=stream_label,
-        )
 
     def _prepare_graph_write_targets(
         self,
@@ -901,11 +877,11 @@ class InferenceWorker(QObject):
 
             src_type = node_types_by_id.get(source_node_id, "")
             src_port = source_ports_by_dst.get(node.id, "")
-            stream_label = self._resolve_graph_write_stream_label_from_edge(src_port, src_type)
+            stream_label = normalize_write_stream_name(source_node_type=src_type, source_port=src_port)
             source_node_title = node_titles_by_id.get(source_node_id, "")
-            port_label = self._get_port_output_label(src_type, src_port)
+            port_label = get_port_output_label(src_type, src_port)
             write_cfg = dict(node.properties or {})
-            target_dir = self._resolve_graph_write_output_dir(write_cfg, output_dir, stream_label, source_node_title, port_label)
+            target_dir = resolve_graph_write_output_dir(write_cfg, output_dir, stream_label, source_node_title, port_label)
             target_dir.mkdir(parents=True, exist_ok=True)
             write_cfg["output_dir"] = str(target_dir)
             self.log_message.emit(

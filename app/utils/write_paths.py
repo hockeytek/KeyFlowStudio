@@ -100,6 +100,41 @@ def build_graph_write_output_dir(
     return base_dir / fallback_stream
 
 
+def get_port_output_label(node_type: str, port_name: str) -> str:
+    """Return the display label for an output port from its spec, or a prettified fallback."""
+    from app.node_graph.specs import get_node_spec
+
+    fallback = str(port_name).replace("_", " ").title()
+    spec = get_node_spec(str(node_type).strip().lower())
+    if spec is None:
+        return fallback
+
+    for port in (spec.outputs or ()):  # pragma: no branch - specs usually have outputs
+        if str(port.name) == str(port_name):
+            return str(port.label) if port.label else fallback
+    return fallback
+
+
+def resolve_graph_write_output_dir(
+    write_cfg: dict,
+    output_dir: Path,
+    stream_label: str,
+    source_node_title: str = "",
+    port_label: str = "",
+) -> Path:
+    """Return the actual Write-node output directory for auto or custom output settings."""
+    custom_dir = str(write_cfg.get("output_dir", "")).strip()
+    auto_output_dir = bool(write_cfg.get("auto_output_dir", True))
+    if not auto_output_dir and custom_dir:
+        return Path(custom_dir)
+    return build_graph_write_output_dir(
+        output_dir,
+        source_node_title=source_node_title,
+        port_label=port_label,
+        stream_label=stream_label,
+    )
+
+
 def build_keyflow_output_dir(source: Path, stream_label: str) -> Path:
     """Return the final auto output directory for a specific stream."""
     return build_keyflow_base_dir(source) / normalize_write_stream_name(source_port=stream_label)
