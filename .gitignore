@@ -17,6 +17,7 @@ env/
 .vscode/
 .idea/
 .DS_Store
+UI/San Francisco Mono/
 
 # Local agent/customization workspace files
 .agents/
