@@ -28,6 +28,11 @@ from app.services.sam3_service import Sam3Service
 from app.node_graph.diagnostics import format_graph_diagnostics_summary, format_graph_diagnostics_text
 from app.node_graph.models import GraphNode, GraphEdge
 from app.workers.graph_write_planner import build_graph_write_plan_targets
+from app.workers.graph_write_streamer import (
+    finalize_graph_write_plan,
+    initialize_graph_write_plan,
+    write_graph_plan_frame,
+)
 from app.utils.media import (
     is_supported_image_file,
     is_numbered_image_sequence,
@@ -1023,67 +1028,12 @@ class InferenceWorker(QObject):
     def _initialize_graph_write_plan(self, plan: dict, *, is_video: bool) -> None:
         if plan.get("initialized"):
             return
-
-        source = Path(self._graph_source_path)
-        write_cfg = dict(plan.get("write_cfg") or {})
-        output_fmt = self._resolve_write_output_format(write_cfg, source)
-        stream_label = str(plan.get("stream_label") or "fg")
-        out_dir = Path(write_cfg.get("output_dir", "") or str(_build_keyflow_output_dir(source, stream_label)))
-        stem = str(write_cfg.get("file_name", "")).strip() or source.stem or "result"
-        plan["output_fmt"] = output_fmt
-        plan["out_dir"] = out_dir
-        plan["stem"] = stem
-        plan["is_video"] = bool(is_video)
-        plan["png_compression"] = int(write_cfg.get("png_compression", 6))
-        plan["png_bit_depth"] = int(write_cfg.get("png_bit_depth", 8))
-        plan["jpg_quality"] = int(write_cfg.get("jpg_quality", 90))
-        plan["embed_alpha"] = bool(write_cfg.get("png_embed_alpha", False))
-        plan["created_paths"] = set()
-        plan["video_codec"] = str(write_cfg.get("video_codec", "h264")).strip().lower() or "h264"
-        plan["video_quality"] = int(write_cfg.get("video_quality", 23))
-        plan["video_preset"] = str(write_cfg.get("video_preset", "medium")).strip().lower() or "medium"
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        video_exts = set(COMPAT_VIDEO_OUTPUT_FORMATS)
-        if output_fmt in video_exts:
-            import imageio
-
-            video_ext = f".{output_fmt}"
-            plan["tmp_path"] = out_dir / f"{stem}_tmp{video_ext}"
-            plan["final_path"] = out_dir / f"{stem}{video_ext}"
-            plan["created_paths"].add(plan["tmp_path"])
-            codec = plan["video_codec"]
-            ffmpeg_codec, output_params = build_video_output_params(
-                codec,
-                crf=int(plan["video_quality"]),
-                preset=str(plan["video_preset"]),
-            )
-            if codec in PRORES_PROFILES:
-                writer = imageio.get_writer(
-                    str(plan["tmp_path"]),
-                    fps=self._graph_fps,
-                    codec=ffmpeg_codec,
-                    macro_block_size=1,
-                    output_params=output_params,
-                )
-            else:
-                writer = imageio.get_writer(
-                    str(plan["tmp_path"]),
-                    fps=self._graph_fps,
-                    codec=ffmpeg_codec,
-                    macro_block_size=1,
-                    output_params=output_params,
-                )
-            plan["writer"] = writer
-        else:
-            ext = ".jpg" if output_fmt in {"jpg", "jpeg"} else f".{output_fmt}"
-            plan["img_ext"] = ext
-            if is_video:
-                plan["first_path"] = out_dir / f"0001{ext}"
-            else:
-                plan["first_path"] = out_dir / f"{stem}{ext}"
-
-        plan["initialized"] = True
+        initialize_graph_write_plan(
+            plan,
+            source_path=self._graph_source_path,
+            graph_fps=self._graph_fps,
+            is_video=is_video,
+        )
 
     def _stream_graph_write_frame(self, source_node_id: str, source_port: str, frame, frame_index_0_based: int, *, is_video: bool) -> None:
         lookup_key = (str(source_node_id), str(source_port).strip().lower())
@@ -1103,48 +1053,22 @@ class InferenceWorker(QObject):
         for plan in plans:
             preview = self._coerce_preview_frame(frame)
             self._initialize_graph_write_plan(plan, is_video=is_video)
-            output_fmt = str(plan.get("output_fmt") or "png")
-            video_exts = set(COMPAT_VIDEO_OUTPUT_FORMATS)
-            if output_fmt in video_exts:
-                writer = plan.get("writer")
-                if writer is not None:
-                    frame_u8 = prepare_video_frame(frame, str(plan.get("video_codec") or "h264"))
-                    writer.append_data(frame_u8)
-                if preview is not None:
-                    self.graph_stream_preview.emit(
-                        str(plan.get("node_id", "")),
-                        make_stream_preview_payload(
-                            preview,
-                            str(plan.get("final_path") or ""),
-                            str(plan.get("stream_label") or ""),
-                            RUNTIME_SEMANTICS_PREVIEW_ONLY,
-                        ),
-                        frame_index_global,
-                    )
-            else:
-                out_dir = Path(plan["out_dir"])
-                if is_video:
-                    out_path = out_dir / f"{frame_index_0_based:04d}{plan['img_ext']}"
-                else:
-                    out_path = Path(plan["first_path"])
-                self._save_image_frame(
-                    frame,
-                    out_path,
-                    output_fmt=output_fmt,
-                    png_compression=int(plan.get("png_compression", 6)),
-                    png_bit_depth=int(plan.get("png_bit_depth", 8)),
-                    jpg_quality=int(plan.get("jpg_quality", 90)),
-                    embed_alpha=bool(plan.get("embed_alpha", False)),
-                )
-                plan["created_paths"].add(out_path)
-                self._graph_stream_saved_paths[str(plan["node_id"])] = Path(plan["first_path"])
+            write_result = write_graph_plan_frame(plan, frame, frame_index_0_based, is_video=is_video)
+            if write_result.saved_path is not None:
+                self._graph_stream_saved_paths[str(plan["node_id"])] = write_result.saved_path
+            semantics = (
+                RUNTIME_SEMANTICS_PREVIEW_ONLY
+                if write_result.saved_path is None or source_port_key == "comp"
+                else RUNTIME_SEMANTICS_PRODUCTION_SAFE
+            )
+            if preview is not None:
                 self.graph_stream_preview.emit(
                     str(plan.get("node_id", "")),
                     make_stream_preview_payload(
                         preview,
-                        str(out_path),
+                        write_result.preview_path,
                         str(plan.get("stream_label") or ""),
-                        RUNTIME_SEMANTICS_PREVIEW_ONLY if source_port_key == "comp" else RUNTIME_SEMANTICS_PRODUCTION_SAFE,
+                        semantics,
                     ),
                     frame_index_global,
                 )
@@ -1154,47 +1078,25 @@ class InferenceWorker(QObject):
             for plan in plans:
                 if not plan.get("initialized") or plan.get("closed"):
                     continue
-                writer = plan.get("writer")
-                if writer is not None:
-                    try:
-                        writer.close()
-                    except Exception as _wclose_exc:
-                        logger.warning("Failed to close stream writer: %s", _wclose_exc)
-                    tmp_path = plan.get("tmp_path")
-                    final_path = plan.get("final_path")
-                    if isinstance(tmp_path, Path) and isinstance(final_path, Path) and tmp_path.exists():
-                        if keep_outputs:
-                            if self._graph_audio_path:
-                                muxed = Path(self._mux_audio(str(tmp_path), self._graph_audio_path, final_path))
-                                if muxed == tmp_path and tmp_path.exists():
-                                    tmp_path.replace(final_path)
-                            else:
-                                tmp_path.replace(final_path)
-                            self._graph_stream_saved_paths[str(plan["node_id"])] = final_path
-                            plan.get("created_paths", set()).add(final_path)
-                            if emit_preview:
-                                self.graph_stream_preview.emit(
-                                    str(plan.get("node_id", "")),
-                                    make_stream_preview_payload(
-                                        None,
-                                        str(final_path),
-                                        str(plan.get("stream_label") or ""),
-                                        RUNTIME_SEMANTICS_PRODUCTION_SAFE,
-                                    ),
-                                    0,
-                                )
-                        else:
-                            try:
-                                tmp_path.unlink(missing_ok=True)
-                            except Exception:
-                                pass
-                if not keep_outputs:
-                    for p in list(plan.get("created_paths", set())):
-                        try:
-                            Path(p).unlink(missing_ok=True)
-                        except Exception:
-                            pass
-                plan["closed"] = True
+                final_path = finalize_graph_write_plan(
+                    plan,
+                    keep_outputs=keep_outputs,
+                    audio_path=self._graph_audio_path,
+                    mux_audio=self._mux_audio,
+                )
+                if keep_outputs and final_path is not None:
+                    self._graph_stream_saved_paths[str(plan["node_id"])] = final_path
+                    if emit_preview:
+                        self.graph_stream_preview.emit(
+                            str(plan.get("node_id", "")),
+                            make_stream_preview_payload(
+                                None,
+                                str(final_path),
+                                str(plan.get("stream_label") or ""),
+                                RUNTIME_SEMANTICS_PRODUCTION_SAFE,
+                            ),
+                            0,
+                        )
 
     @staticmethod
     def _normalize_node_output_frames(data) -> list[np.ndarray]:

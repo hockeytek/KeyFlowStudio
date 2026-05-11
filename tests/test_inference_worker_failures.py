@@ -261,6 +261,52 @@ class InferenceWorkerFailurePathTests(unittest.TestCase):
         self.assertEqual([event[2] for event in emitted], [12, 12])
         self.assertTrue(all(event[1].get("semantics") == "production_safe" for event in emitted))
 
+    def test_finalize_graph_stream_writes_closes_video_plan_and_records_output(self):
+        class _Writer:
+            def __init__(self):
+                self.closed = False
+
+            def close(self):
+                self.closed = True
+
+        worker = InferenceWorker.__new__(InferenceWorker)
+        worker._graph_audio_path = ""
+        worker._graph_stream_saved_paths = {}
+        emitted = []
+        worker.graph_stream_preview = SimpleNamespace(emit=lambda *args: emitted.append(args))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / "clip_tmp.mp4"
+            final_path = Path(tmp_dir) / "clip.mp4"
+            tmp_path.write_bytes(b"video")
+            writer = _Writer()
+            worker._graph_write_plans = {
+                ("corridor_1", "alpha"): [
+                    {
+                        "node_id": "write_video",
+                        "stream_label": "alpha",
+                        "initialized": True,
+                        "closed": False,
+                        "writer": writer,
+                        "tmp_path": tmp_path,
+                        "final_path": final_path,
+                        "created_paths": {tmp_path},
+                    }
+                ]
+            }
+
+            worker._finalize_graph_stream_writes(keep_outputs=True, emit_preview=True)
+
+            self.assertTrue(writer.closed)
+            self.assertFalse(tmp_path.exists())
+            self.assertTrue(final_path.exists())
+            self.assertEqual(worker._graph_stream_saved_paths["write_video"], final_path)
+            self.assertIn(final_path, worker._graph_write_plans[("corridor_1", "alpha")][0]["created_paths"])
+
+        self.assertEqual(len(emitted), 1)
+        self.assertEqual(emitted[0][0], "write_video")
+        self.assertEqual(emitted[0][1]["semantics"], "production_safe")
+
     def test_sam3_node_uses_persisted_masks_like_sam(self):
         worker = InferenceWorker.__new__(InferenceWorker)
         worker.cancel_flag = SimpleNamespace(is_set=lambda: False)
