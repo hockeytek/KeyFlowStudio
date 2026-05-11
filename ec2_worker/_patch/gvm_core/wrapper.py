@@ -6,12 +6,10 @@ import logging
 import time
 from pathlib import Path
 
-from easydict import EasyDict
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from torchvision.transforms import ToTensor, Resize, Compose
 from diffusers import AutoencoderKLTemporalDecoder, FlowMatchEulerDiscreteScheduler
 from tqdm import tqdm
@@ -151,7 +149,6 @@ class GVMProcessor:
 
         target_h = orig_h
         if target_h < 1024:
-            scale_ratio = 1024 / target_h
             target_h = 1024
         
         # Calculate max resolution / long edge

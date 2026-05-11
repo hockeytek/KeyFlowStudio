@@ -3,21 +3,15 @@ import tqdm
 import numpy as np
 from diffusers import DiffusionPipeline
 from diffusers.utils import (
-    BaseOutput, 
-    USE_PEFT_BACKEND,     
-    is_peft_available,
-    is_peft_version,
-    is_torch_version,
+    BaseOutput,
     logging
 )
 from diffusers.loaders.lora_pipeline import (
-    _LOW_CPU_MEM_USAGE_DEFAULT_LORA,
     StableDiffusionLoraLoaderMixin
 )
 from peft import LoraConfig, LoraModel, set_peft_model_state_dict
 import os
 
-import matplotlib
 from typing import Union, Dict
 logger = logging.get_logger(__name__)
 
@@ -36,7 +30,7 @@ class GVMLoraLoader(StableDiffusionLoraLoaderMixin):
     ):
 
         unet_lora_config = LoraConfig.from_pretrained(pretrained_model_name_or_path_or_dict)
-        checkpoint = os.path.join(pretrained_model_name_or_path_or_dict, f"pytorch_lora_weights.pt")
+        checkpoint = os.path.join(pretrained_model_name_or_path_or_dict, "pytorch_lora_weights.pt")
         unet_lora_ckpt = torch.load(checkpoint)
         self.unet = LoraModel(self.unet, unet_lora_config, "default")
         set_peft_model_state_dict(self.unet, unet_lora_ckpt)
