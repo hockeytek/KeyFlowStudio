@@ -2,7 +2,6 @@
 from __future__ import annotations
 import logging, shutil
 from pathlib import Path
-from typing import Callable
 import hashlib
 import numpy as np
 from PIL import Image

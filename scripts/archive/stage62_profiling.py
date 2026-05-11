@@ -16,7 +16,6 @@ import argparse
 import os
 import sys
 import time
-import threading
 from pathlib import Path
 
 os.environ.setdefault("KEYFLOW_DEVICE", "cpu")

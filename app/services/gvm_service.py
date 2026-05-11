@@ -10,7 +10,6 @@ Model weights: https://huggingface.co/geyongtao/gvm
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Callable, Optional
@@ -45,7 +44,6 @@ class _Float32PipeWrapper:
         # on every forward pass, causing CPU hangs.
         vae = getattr(pipe, "vae", None)
         if vae is not None:
-            _original_vae_to = vae.to.__func__ if hasattr(vae.to, "__func__") else None
             _vae_ref = vae
 
             def _safe_vae_to(*args, **kwargs):

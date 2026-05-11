@@ -11,7 +11,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PySide6.QtCore import QSignalBlocker, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtGui import QIcon, QPixmap
 
 from app.utils.media import (
     load_image_float,

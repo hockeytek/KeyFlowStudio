@@ -16,9 +16,7 @@ from app.constants import (
     DEFAULT_VIDEO_CODEC,
     DEFAULT_VIDEO_CRF,
     DEFAULT_VIDEO_PRESET,
-    FFMPEG_CODEC_MAP,
     PRORES_PROFILES,
-    VALID_VIDEO_PRESETS,
 )
 from app.i18n import t
 from app.settings import get_app_settings
@@ -35,13 +33,10 @@ from app.utils.media import (
     load_image_sequence,
     load_rgb_image,
     load_image_float,
-    save_exr_image,
 )
 from app.utils.write_output import (
     COMPAT_IMAGE_OUTPUT_FORMATS,
     COMPAT_VIDEO_OUTPUT_FORMATS,
-    IMAGE_OUTPUT_FORMATS,
-    VIDEO_OUTPUT_FORMATS,
     build_video_output_params,
     prepare_video_frame,
     promote_alpha_to_rgba_exr,
@@ -1205,7 +1200,6 @@ class InferenceWorker(QObject):
             preview = self._coerce_preview_frame(frame)
             self._initialize_graph_write_plan(plan, is_video=is_video)
             output_fmt = str(plan.get("output_fmt") or "png")
-            stream_label = str(plan.get("stream_label") or "")
             video_exts = set(COMPAT_VIDEO_OUTPUT_FORMATS)
             if output_fmt in video_exts:
                 writer = plan.get("writer")

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import urllib.error
-import urllib.request
 from typing import Callable
 
 from PySide6.QtCore import Qt, QThread, QObject, Signal

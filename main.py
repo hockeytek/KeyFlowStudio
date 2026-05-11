@@ -48,10 +48,8 @@ from PIL import Image
 # Add parent directory to path so we can import workspace modules
 sys.path.insert(0, str(Path(__file__).parent))
 
-import psutil
-
 from PySide6.QtCore import Qt, QThread, QTimer, Signal, QSignalBlocker, QSize, QLockFile, QStandardPaths, QUrl
-from PySide6.QtGui import QDesktopServices, QImage, QPainter, QPen, QColor, QPixmap, QIcon
+from PySide6.QtGui import QDesktopServices, QImage, QPainter, QPixmap, QIcon
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
@@ -63,10 +61,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QDialog,
     QDialogButtonBox,
-    QFormLayout,
-    QComboBox,
-    QCheckBox,
-    QGroupBox,
     QLabel,
     QInputDialog,
     QSizePolicy,
@@ -76,19 +70,11 @@ from PySide6.QtWidgets import (
     QWidget,
     QTextEdit,
     QFrame,
-    QTabWidget,
-    QLineEdit,
-    QPlainTextEdit,
-    QListWidget,
-    QListWidgetItem,
 )
 
 from app.utils.frame_range_helper import FrameRangeController
 from app.utils.write_output import (
-    COMPAT_IMAGE_OUTPUT_FORMATS,
     COMPAT_VIDEO_OUTPUT_FORMATS,
-    IMAGE_OUTPUT_FORMATS,
-    VIDEO_OUTPUT_FORMATS,
     build_video_output_params,
     image_extension_for_format,
     prepare_video_frame,
@@ -219,10 +205,7 @@ except Exception:  # pragma: no cover - multimedia backend may be unavailable
 
 from UI.main_ui import Ui_MainWindow
 from app.constants import (
-    DEFAULT_VIDEO_PRESET,
-    FFMPEG_CODEC_MAP,
     PRORES_PROFILES,
-    VALID_VIDEO_PRESETS,
 )
 from app.i18n import t
 from app.node_graph_dialog import NodeGraphDialog
@@ -246,7 +229,7 @@ from app.utils import check_ffmpeg, get_ffmpeg_info, install_ffmpeg_info
 from app.utils.write_paths import build_keyflow_base_dir
 from app.utils.media import resolve_numbered_image_sequence
 from app.settings import get_app_settings
-from app.cloud_settings import get_cloud_setting, save_cloud_settings
+from app.cloud_settings import get_cloud_setting
 from app.settings_dialog_mixin import SettingsDialogMixin
 
 APP_VERSION = "1.0"
@@ -1544,8 +1527,6 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             return ""
 
         video_exts = set(COMPAT_VIDEO_OUTPUT_FORMATS)
-        image_exts = set(COMPAT_IMAGE_OUTPUT_FORMATS)
-
         output_fmt = resolve_write_output_format(
             write_cfg,
             Path(f"input{source_ext or ''}"),

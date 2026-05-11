@@ -12,6 +12,7 @@ Notes:
 from __future__ import annotations
 
 from contextlib import contextmanager
+import importlib.util
 import logging
 import math
 from pathlib import Path
@@ -186,9 +187,7 @@ class Sam3Service:
                 pass
 
         if "sam3.model.edt" not in sys.modules:
-            try:
-                import triton  # noqa: F401
-            except ModuleNotFoundError:
+            if importlib.util.find_spec("triton") is None:
                 edt_mod = types.ModuleType("sam3.model.edt")
 
                 def edt_triton(data):

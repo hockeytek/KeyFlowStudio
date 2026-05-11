@@ -42,7 +42,7 @@ import cv2
 import numpy as np
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 # ── Logging ───────────────────────────────────────────────────────────────────

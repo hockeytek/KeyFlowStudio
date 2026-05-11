@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QWidget
 
 from app.node_graph.properties_style import (
     apply_properties_reference_style,

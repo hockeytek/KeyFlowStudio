@@ -46,7 +46,7 @@ def download_matanyone2():
     if out_path.exists():
         print(f"✅ MatAnyone2 already exists: {out_path}")
         return
-    print(f"\n📥 Downloading MatAnyone2 checkpoint...")
+    print("\n📥 Downloading MatAnyone2 checkpoint...")
     print(f"   {url}")
     print(f"   → {out_path}")
 
