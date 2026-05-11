@@ -31,7 +31,9 @@ Not yet recommended:
 
 ## Screenshots
 
-Screenshots and short demo clips should be added before making the repository public. Keep media lightweight and avoid including source footage that cannot be redistributed.
+![KeyFlow Studio node graph workflow](docs/wfl_1.png)
+
+KeyFlow Studio combines input/output preview, frame controls, node graph editing, and per-node output settings in one workspace for keying and compositing workflows.
 
 ## Requirements
 
