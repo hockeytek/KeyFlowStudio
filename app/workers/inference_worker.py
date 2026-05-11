@@ -34,6 +34,11 @@ from app.utils.media import (
     load_rgb_image,
     load_image_float,
 )
+from app.utils.corridorkey_output import (
+    build_corridorkey_processed_output,
+    coerce_alpha_2d,
+    coerce_rgb_float01,
+)
 from app.utils.write_output import (
     COMPAT_IMAGE_OUTPUT_FORMATS,
     COMPAT_VIDEO_OUTPUT_FORMATS,
@@ -459,54 +464,6 @@ class InferenceWorker(QObject):
             mask = np.power(np.clip(mask, 0.0, 1.0), 1.0 / g)
 
         return np.clip(mask.astype(np.float32), 0.0, 1.0)
-
-    @staticmethod
-    def _coerce_alpha_2d(alpha: np.ndarray | None) -> np.ndarray | None:
-        if alpha is None:
-            return None
-        a = np.asarray(alpha, dtype=np.float32)
-        if a.ndim == 3 and a.shape[2] >= 1:
-            a = a[:, :, 0]
-        if a.ndim != 2:
-            return None
-        return np.clip(a, 0.0, 1.0)
-
-    @staticmethod
-    def _coerce_rgb_float01(rgb: np.ndarray | None) -> np.ndarray | None:
-        if rgb is None:
-            return None
-        arr = np.asarray(rgb, dtype=np.float32)
-        if arr.ndim != 3 or arr.shape[2] < 3:
-            return None
-        arr = arr[:, :, :3]
-        max_val = float(np.nanmax(arr)) if arr.size else 0.0
-        if max_val > 1.5:
-            arr = arr / 255.0
-        return np.clip(arr, 0.0, 1.0)
-
-    @staticmethod
-    def _build_corridorkey_processed_output(
-        output_mode: str,
-        source_rgb: np.ndarray,
-        fg_rgb: np.ndarray,
-        alpha_2d: np.ndarray,
-    ) -> np.ndarray:
-        mode = str(output_mode or "processed").strip().lower()
-        if mode == "matte_only":
-            rgb = np.repeat(alpha_2d[:, :, np.newaxis], 3, axis=2)
-        elif mode == "foreground_only":
-            rgb = fg_rgb
-        elif mode == "source_matte":
-            rgb = source_rgb
-        else:
-            # processed = srgb_to_linear(fg) * alpha  (matches official engine output)
-            # fg_rgb is sRGB straight; processed EXR must be linear premultiplied.
-            x = np.clip(fg_rgb, 0.0, 1.0).astype(np.float32)
-            fg_lin = np.where(x <= 0.04045, x / 12.92, ((x + 0.055) / 1.055) ** 2.4)
-            a3 = np.clip(alpha_2d[:, :, np.newaxis], 0.0, 1.0)
-            rgb = fg_lin * a3
-        rgba = np.concatenate([np.clip(rgb, 0.0, 1.0), alpha_2d[:, :, np.newaxis]], axis=2)
-        return rgba.astype(np.float32)
 
     @staticmethod
     def _is_normalized_float_range(min_val: float, max_val: float) -> bool:
@@ -2984,7 +2941,7 @@ class InferenceWorker(QObject):
                 alpha_ctrl: np.ndarray | None = None
                 engine_alpha_raw: np.ndarray | None = None
                 if need_alpha_post:
-                    engine_alpha_raw = self._coerce_alpha_2d(result.get("alpha"))
+                    engine_alpha_raw = coerce_alpha_2d(result.get("alpha"))
                     alpha_ctrl = engine_alpha_raw
                     if alpha_ctrl is not None:
                         alpha_ctrl = self._apply_corridorkey_alpha_controls(
@@ -3006,8 +2963,8 @@ class InferenceWorker(QObject):
                 source_rgb: np.ndarray | None = None
                 fg_rgb: np.ndarray | None = None
                 if need_fg_path:
-                    source_rgb = self._coerce_rgb_float01(frame)
-                    fg_rgb = self._coerce_rgb_float01(result.get("fg"))
+                    source_rgb = coerce_rgb_float01(frame)
+                    fg_rgb = coerce_rgb_float01(result.get("fg"))
                     if fg_rgb is None and source_rgb is not None:
                         fg_rgb = source_rgb.copy()
                     if source_rgb is None and fg_rgb is not None:
@@ -3017,7 +2974,7 @@ class InferenceWorker(QObject):
                                       and not np.array_equal(alpha_ctrl, engine_alpha_raw))
 
                 if need_processed and fg_rgb is not None:
-                    _alpha_for_proc = alpha_ctrl if alpha_ctrl is not None else InferenceWorker._coerce_alpha_2d(result.get("alpha"))
+                    _alpha_for_proc = alpha_ctrl if alpha_ctrl is not None else coerce_alpha_2d(result.get("alpha"))
                     if _alpha_for_proc is not None and (alpha_was_modified or despill_01 > 1e-6):
                         # Rebuild from raw fg using max(R,B) despill mode.
                         if despill_01 > 0:
@@ -3038,12 +2995,12 @@ class InferenceWorker(QObject):
                             _fg_for_proc = np.clip(_fg_for_proc, 0.0, 1.0)
                         else:
                             _fg_for_proc = fg_rgb
-                        result["processed"] = self._build_corridorkey_processed_output(
+                        result["processed"] = build_corridorkey_processed_output(
                             output_mode, source_rgb, _fg_for_proc, _alpha_for_proc,
                         )
 
                 if need_comp_rebuild and fg_rgb is not None:
-                    _alpha_for_comp = alpha_ctrl if alpha_ctrl is not None else InferenceWorker._coerce_alpha_2d(result.get("alpha"))
+                    _alpha_for_comp = alpha_ctrl if alpha_ctrl is not None else coerce_alpha_2d(result.get("alpha"))
                     if _alpha_for_comp is not None and (alpha_was_modified or despill_01 > 1e-6):
                         if despill_01 > 0:
                             _r = fg_rgb[:, :, 0]; _g = fg_rgb[:, :, 1]; _b = fg_rgb[:, :, 2]

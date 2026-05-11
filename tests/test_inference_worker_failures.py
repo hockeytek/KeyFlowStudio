@@ -10,6 +10,11 @@ import torch
 from app.workers.inference_worker import InferenceWorker
 from app.services.birefnet_service import BiRefNetService
 from app.services.corridorkey_service import CorridorKeyService
+from app.utils.corridorkey_output import (
+    build_corridorkey_processed_output,
+    coerce_alpha_2d,
+    coerce_rgb_float01,
+)
 
 
 class InferenceWorkerFailurePathTests(unittest.TestCase):
@@ -582,10 +587,10 @@ class InferenceWorkerFailurePathTests(unittest.TestCase):
         fg = np.array([[[0.7, 0.6, 0.5]]], dtype=np.float32)
         alpha = np.array([[0.4]], dtype=np.float32)
 
-        matte = InferenceWorker._build_corridorkey_processed_output("matte_only", src, fg, alpha)
-        fore = InferenceWorker._build_corridorkey_processed_output("foreground_only", src, fg, alpha)
-        sm = InferenceWorker._build_corridorkey_processed_output("source_matte", src, fg, alpha)
-        proc = InferenceWorker._build_corridorkey_processed_output("processed", src, fg, alpha)
+        matte = build_corridorkey_processed_output("matte_only", src, fg, alpha)
+        fore = build_corridorkey_processed_output("foreground_only", src, fg, alpha)
+        sm = build_corridorkey_processed_output("source_matte", src, fg, alpha)
+        proc = build_corridorkey_processed_output("processed", src, fg, alpha)
 
         self.assertEqual(matte.shape, (1, 1, 4))
         self.assertAlmostEqual(float(matte[0, 0, 0]), 0.4, places=5)
@@ -606,6 +611,18 @@ class InferenceWorkerFailurePathTests(unittest.TestCase):
         self.assertAlmostEqual(float(proc[0, 0, 1]), 0.12741871125003676, places=4)
         self.assertAlmostEqual(float(proc[0, 0, 2]), 0.08561645619289303, places=4)
         self.assertAlmostEqual(float(proc[0, 0, 3]), 0.4, places=5)
+
+    def test_corridorkey_output_helpers_coerce_shapes_and_ranges(self):
+        alpha = coerce_alpha_2d(np.array([[[0.2, 0.9], [1.2, -1.0]]], dtype=np.float32))
+        self.assertIsNotNone(alpha)
+        np.testing.assert_allclose(alpha, np.array([[0.2, 1.0]], dtype=np.float32))
+
+        rgb = coerce_rgb_float01(np.array([[[0, 128, 255, 99]]], dtype=np.uint8))
+        self.assertIsNotNone(rgb)
+        np.testing.assert_allclose(rgb, np.array([[[0.0, 128.0 / 255.0, 1.0]]], dtype=np.float32))
+
+        self.assertIsNone(coerce_alpha_2d(np.zeros((1,), dtype=np.float32)))
+        self.assertIsNone(coerce_rgb_float01(np.zeros((1, 1), dtype=np.float32)))
 
 
 if __name__ == "__main__":
