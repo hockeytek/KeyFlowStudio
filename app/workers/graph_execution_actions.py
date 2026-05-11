@@ -3,9 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
+import logging
+from pathlib import Path
 from typing import Any
 
 from app.node_graph.models import GraphEdge, GraphNode
+from app.utils.media import is_numbered_image_sequence, load_image_float
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class PassthroughSourceFrames:
+    frames: list
+    log_message: str | None = None
 
 
 def build_graph_downstream_targets(
@@ -43,6 +55,52 @@ def build_passthrough_source_output(
             "frame_sequence": dict(port_meta),
         },
     }
+
+
+def load_passthrough_source_frames(
+    node: GraphNode,
+    initial_frames: list,
+    *,
+    graph_source_path: str,
+    graph_output_dir: Path | None,
+    graph_start_frame: int,
+    graph_end_frame: int,
+    load_video: Callable[[str, Path], tuple[list, float, str]],
+    load_image: Callable[[str], Any] = load_image_float,
+    is_image_sequence: Callable[[str], bool] = is_numbered_image_sequence,
+) -> PassthroughSourceFrames:
+    node_type = str(node.type)
+    if node_type == "source":
+        return PassthroughSourceFrames(initial_frames)
+
+    node_props = node.properties or {}
+    node_path = str(node_props.get("path", "")).strip()
+    if not node_path or node_path == graph_source_path or not Path(node_path).exists():
+        return PassthroughSourceFrames(initial_frames)
+
+    try:
+        node_media_type = str(node_props.get("media_type", "video")).strip().lower()
+        if node_media_type == "image" and not is_image_sequence(node_path):
+            node_frames = [load_image(node_path)]
+        else:
+            node_frames, _, _ = load_video(node_path, graph_output_dir or Path("."))
+            if graph_end_frame > 0:
+                node_frames = node_frames[graph_start_frame:graph_end_frame]
+            elif graph_start_frame > 0:
+                node_frames = node_frames[graph_start_frame:]
+        return PassthroughSourceFrames(
+            node_frames,
+            f"{node_type.capitalize()} node {node.id}: loaded {len(node_frames)} frame(s) from {Path(node_path).name}",
+        )
+    except Exception as load_exc:
+        logger.warning(
+            "%s node %s: failed to load %s: %s, using global frames",
+            node_type.capitalize(),
+            node.id,
+            node_path,
+            load_exc,
+        )
+        return PassthroughSourceFrames(initial_frames)
 
 
 def build_deferred_action_output(node_type: str) -> dict[str, Any]:

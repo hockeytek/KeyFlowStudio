@@ -32,6 +32,7 @@ from app.workers.graph_execution_actions import (
     build_graph_downstream_targets,
     build_passthrough_source_output,
     format_deferred_action_log,
+    load_passthrough_source_frames,
 )
 from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.workers.graph_write_streamer import (
@@ -599,43 +600,20 @@ class InferenceWorker(QObject):
             inputs = self._gather_node_inputs(nodes_by_id, edges, node_id, outputs, frames)
 
             if action == "passthrough_source":
-                node_props = node.properties or {}
-                node_path = str(node_props.get("path", "")).strip()
-                if node_type == "source":
-                    # Source is the primary timeline media loaded at graph start.
-                    node_frames = frames
-                elif node_path and node_path != self._graph_source_path and Path(node_path).exists():
-                    # Second (or override) load node — load from its own path
-                    node_media_type = str(node_props.get("media_type", "video")).strip().lower()
-                    is_image_sequence = is_numbered_image_sequence(node_path)
-                    try:
-                        if node_media_type == "image" and not is_image_sequence:
-                            node_frames = [load_image_float(node_path)]
-                        else:
-                            node_frames, _, _ = self._load_video(
-                                node_path, self._graph_output_dir or Path("."))
-                            # Apply the same frame range that was applied to global frames
-                            _sf = getattr(self, "_graph_start_frame", 0)
-                            _ef = getattr(self, "_graph_end_frame", -1)
-                            if _ef > 0:
-                                node_frames = node_frames[_sf:_ef]
-                            elif _sf > 0:
-                                node_frames = node_frames[_sf:]
-                        self.log_message.emit(
-                            f"{node_type.capitalize()} node {node_id}: loaded {len(node_frames)} frame(s) from {Path(node_path).name}"
-                        )
-                    except Exception as _le:
-                        logger.warning(
-                            "%s node %s: failed to load %s: %s, using global frames",
-                            node_type.capitalize(),
-                            node_id,
-                            node_path,
-                            _le,
-                        )
-                        node_frames = frames
-                else:
-                    node_frames = frames
-                outputs[node_id] = build_passthrough_source_output(node_frames, self._frame_bbox)
+                load_result = load_passthrough_source_frames(
+                    node,
+                    frames,
+                    graph_source_path=self._graph_source_path,
+                    graph_output_dir=self._graph_output_dir,
+                    graph_start_frame=getattr(self, "_graph_start_frame", 0),
+                    graph_end_frame=getattr(self, "_graph_end_frame", -1),
+                    load_video=self._load_video,
+                    load_image=load_image_float,
+                    is_image_sequence=is_numbered_image_sequence,
+                )
+                if load_result.log_message:
+                    self.log_message.emit(load_result.log_message)
+                outputs[node_id] = build_passthrough_source_output(load_result.frames, self._frame_bbox)
                 continue
 
             if action == "deferred":

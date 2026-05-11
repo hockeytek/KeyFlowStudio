@@ -28,6 +28,7 @@ from app.workers.graph_execution_actions import (
     build_graph_downstream_targets,
     build_passthrough_source_output,
     format_deferred_action_log,
+    load_passthrough_source_frames,
 )
 from app.workers.graph_write_planner import build_graph_write_plan_targets
 from app.workers.inference_worker import (
@@ -306,6 +307,45 @@ class GraphExecutionActionHelperTests(unittest.TestCase):
         self.assertEqual(build_deferred_action_output("birefnet"), {"__deferred_staged__": True, "alpha": None})
         self.assertIn("SAM2 node sam_1", format_deferred_action_log("sam_1", "sam2"))
         self.assertIn("BiRefNet node biref_1", format_deferred_action_log("biref_1", "birefnet"))
+
+    def test_load_passthrough_source_frames_applies_graph_frame_range_to_secondary_media(self):
+        loaded_frames = _frames(5)
+        fallback_frames = _frames(1)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            node_path = Path(tmpdir) / "clip.mp4"
+            node_path.write_bytes(b"video")
+            node = GraphNode(id="load_1", type="load", title="L", properties={"path": str(node_path)})
+
+            result = load_passthrough_source_frames(
+                node,
+                fallback_frames,
+                graph_source_path="/tmp/source.mp4",
+                graph_output_dir=Path(tmpdir),
+                graph_start_frame=1,
+                graph_end_frame=4,
+                load_video=lambda *_args: (loaded_frames, 25.0, ""),
+            )
+
+        self.assertEqual(result.frames, loaded_frames[1:4])
+        self.assertIn("Load node load_1: loaded 3 frame(s)", result.log_message or "")
+
+    def test_load_passthrough_source_frames_falls_back_to_primary_frames_for_same_path(self):
+        frames = _frames(2)
+        node = GraphNode(id="load_1", type="load", title="L", properties={"path": "/tmp/source.mp4"})
+
+        result = load_passthrough_source_frames(
+            node,
+            frames,
+            graph_source_path="/tmp/source.mp4",
+            graph_output_dir=None,
+            graph_start_frame=0,
+            graph_end_frame=-1,
+            load_video=lambda *_args: (_frames(1), 25.0, ""),
+        )
+
+        self.assertIs(result.frames, frames)
+        self.assertIsNone(result.log_message)
 
 
 class ThreeNodeGraphTests(unittest.TestCase):
