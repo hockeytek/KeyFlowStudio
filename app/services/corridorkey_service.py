@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import inspect
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -39,11 +40,18 @@ class CorridorKeyService:
     _engine: Optional[CorridorKeyEngine] = None
     _lock = None  # threading.Lock, created on first access
     CHECKPOINT_REPO_ID = "nikopueringer/CorridorKey_v1.0"
-    CHECKPOINT_FILENAMES = (
+    CHECKPOINT_REPO_ID_BLUE = "nikopueringer/CorridorKeyBlue_1.0"
+    CHECKPOINT_FILENAMES_GREEN = (
+        "CorridorKey_v1.0.safetensors",
         "CorridorKey_v1.0.pth",
         "CorridorKey.pth",
         "corridorkey.pth",
     )
+    CHECKPOINT_FILENAMES_BLUE = (
+        "CorridorKeyBlue_1.0.safetensors",
+        "CorridorKeyBlue_1.0.pth",
+    )
+    CHECKPOINT_FILENAMES = CHECKPOINT_FILENAMES_GREEN
     CHECKPOINT_VARIANT = "v1.0"
     _RUNTIME_NOTICE: str = ""
     
@@ -61,7 +69,9 @@ class CorridorKeyService:
         self._initialized = True
         self.device = self._select_device()
         self.checkpoint_path = None  # Will be lazy-loaded
+        self._checkpoint_paths: dict[str, str] = {}
         self.engine_use_refiner: bool | None = None
+        self.engine_screen_color: str | None = None
         self.logger = logger
 
     @classmethod
@@ -82,31 +92,64 @@ class CorridorKeyService:
         logger.info(f"CorridorKey: Using device: {device}")
         return device
     @staticmethod
-    def _checkpoint_candidates() -> list[Path]:
-        """Return ordered checkpoint candidates for local lookup."""
-        models_dir = get_model_variant_dir("corridorkey", CorridorKeyService.CHECKPOINT_VARIANT)
-        return [
-            models_dir / "CorridorKey_v1.0.pth",
-            models_dir / "CorridorKey.pth",
-            models_dir / "corridorkey.pth",
-        ]
+    def _normalize_screen_color(screen_color: str | None, *, allow_auto: bool = False) -> str:
+        color = str(screen_color or "green").strip().lower()
+        allowed = {"green", "blue"} | ({"auto"} if allow_auto else set())
+        if color not in allowed:
+            valid = ", ".join(sorted(allowed))
+            raise ValueError(f"Unknown CorridorKey screen_color {color!r}. Valid: {valid}")
+        return color
 
     @classmethod
-    def find_local_checkpoint(cls) -> Path | None:
+    def _checkpoint_filenames(cls, screen_color: str) -> tuple[str, ...]:
+        color = cls._normalize_screen_color(screen_color)
+        return cls.CHECKPOINT_FILENAMES_BLUE if color == "blue" else cls.CHECKPOINT_FILENAMES_GREEN
+
+    @classmethod
+    def _checkpoint_repo_id(cls, screen_color: str) -> str:
+        color = cls._normalize_screen_color(screen_color)
+        return cls.CHECKPOINT_REPO_ID_BLUE if color == "blue" else cls.CHECKPOINT_REPO_ID
+
+    @staticmethod
+    def _screen_channel_for_color(screen_color: str) -> int:
+        return 2 if CorridorKeyService._normalize_screen_color(screen_color) == "blue" else 1
+
+    @classmethod
+    def _checkpoint_candidates(cls, screen_color: str = "green") -> list[Path]:
+        """Return ordered checkpoint candidates for local lookup."""
+        models_dir = get_model_variant_dir("corridorkey", cls.CHECKPOINT_VARIANT)
+        return [models_dir / filename for filename in cls._checkpoint_filenames(screen_color)]
+
+    @classmethod
+    def find_local_checkpoint(cls, screen_color: str = "green") -> Path | None:
         """Return local checkpoint path if present, else None."""
-        for path in cls._checkpoint_candidates():
+        for path in cls._checkpoint_candidates(screen_color):
             if path.exists():
                 return path.resolve()
         return None
 
     @classmethod
-    def get_checkpoint_status(cls) -> dict:
+    def get_checkpoint_status(cls, screen_color: str = "green") -> dict:
         """Return checkpoint availability status for UI."""
-        local = cls.find_local_checkpoint()
+        color = cls._normalize_screen_color(screen_color, allow_auto=True)
+        green = cls.find_local_checkpoint("green")
+        blue = cls.find_local_checkpoint("blue")
+        if color == "auto":
+            ready = green is not None and blue is not None
+            local = green if ready else None
+        elif color == "blue":
+            ready = blue is not None
+            local = blue
+        else:
+            ready = green is not None
+            local = green
         return {
-            "state": "ready" if local is not None else "missing",
+            "state": "ready" if ready else "missing",
             "path": str(local) if local is not None else None,
-            "repo_id": cls.CHECKPOINT_REPO_ID,
+            "repo_id": cls._checkpoint_repo_id("green" if color == "auto" else color),
+            "screen_color": color,
+            "green_ready": green is not None,
+            "blue_ready": blue is not None,
         }
 
     @classmethod
@@ -169,19 +212,27 @@ class CorridorKeyService:
     def ensure_checkpoint_available(
         cls,
         progress_callback: Optional[Callable[[int, str], None]] = None,
+        screen_color: str = "green",
     ) -> Path:
         """Ensure CorridorKey checkpoint exists locally, downloading when missing."""
-        local = cls.find_local_checkpoint()
+        color = cls._normalize_screen_color(screen_color, allow_auto=True)
+        if color == "auto":
+            green = cls.ensure_checkpoint_available(progress_callback, screen_color="green")
+            cls.ensure_checkpoint_available(progress_callback, screen_color="blue")
+            return green
+
+        local = cls.find_local_checkpoint(color)
         if local is not None:
-            cls._emit_download_progress(progress_callback, 100, "CorridorKey checkpoint ready")
+            cls._emit_download_progress(progress_callback, 100, f"CorridorKey {color} checkpoint ready")
             return local
 
         models_dir = get_model_variant_dir("corridorkey", cls.CHECKPOINT_VARIANT)
         last_error: Exception | None = None
-        for filename in cls.CHECKPOINT_FILENAMES:
+        repo_id = cls._checkpoint_repo_id(color)
+        for filename in cls._checkpoint_filenames(color):
             try:
                 downloaded = cls._download_checkpoint_file(
-                    repo_id=cls.CHECKPOINT_REPO_ID,
+                    repo_id=repo_id,
                     filename=filename,
                     destination_dir=models_dir,
                     progress_callback=progress_callback,
@@ -192,12 +243,12 @@ class CorridorKeyService:
 
         if last_error is not None:
             raise RuntimeError(
-                f"Failed to download CorridorKey checkpoint from {cls.CHECKPOINT_REPO_ID}: {last_error}"
+                f"Failed to download CorridorKey {color} checkpoint from {repo_id}: {last_error}"
             ) from last_error
-        raise RuntimeError(f"Failed to download CorridorKey checkpoint from {cls.CHECKPOINT_REPO_ID}")
+        raise RuntimeError(f"Failed to download CorridorKey {color} checkpoint from {repo_id}")
 
     @classmethod
-    def _find_checkpoint(cls) -> str:
+    def _find_checkpoint(cls, screen_color: str = "green") -> str:
         """Find CorridorKey checkpoint from standard locations.
         
         Tries multiple locations in order:
@@ -209,32 +260,67 @@ class CorridorKeyService:
         Raises:
             FileNotFoundError: If checkpoint not found in any location
         """
-        local = cls.find_local_checkpoint()
+        color = cls._normalize_screen_color(screen_color)
+        local = cls.find_local_checkpoint(color)
         if local is not None:
-            logger.info(f"CorridorKey: Found checkpoint at {local}")
+            logger.info(f"CorridorKey: Found {color} checkpoint at {local}")
             return str(local)
 
         # Attempt managed auto-download for autonomous app flow.
         try:
-            downloaded = cls.ensure_checkpoint_available()
-            logger.info(f"CorridorKey: Downloaded checkpoint to {downloaded}")
+            downloaded = cls.ensure_checkpoint_available(screen_color=color)
+            logger.info(f"CorridorKey: Downloaded {color} checkpoint to {downloaded}")
             return str(downloaded)
         except Exception as exc:
             logger.warning(f"CorridorKey: Auto-download failed: {exc}")
         
         # Provide helpful error message
-        candidates = cls._checkpoint_candidates()
+        candidates = cls._checkpoint_candidates(color)
         logger.error(f"CorridorKey: Checkpoint not found. Checked: {[str(p) for p in candidates]}")
         raise FileNotFoundError(
-            f"CorridorKey checkpoint not found.\n"
+            f"CorridorKey {color} checkpoint not found.\n"
             f"Tried: {', '.join(str(p) for p in candidates)}\n"
-            f"Download from: https://huggingface.co/{cls.CHECKPOINT_REPO_ID}"
+            f"Download from: https://huggingface.co/{cls._checkpoint_repo_id(color)}"
         )
+
+    @staticmethod
+    def _process_frame_accepts_kw(engine: object, keyword: str) -> bool:
+        try:
+            sig = inspect.signature(engine.process_frame)  # type: ignore[attr-defined]
+        except Exception:
+            return False
+        return keyword in sig.parameters or any(
+            param.kind == inspect.Parameter.VAR_KEYWORD
+            for param in sig.parameters.values()
+        )
+
+    def _resolve_screen_color_for_frame(
+        self,
+        screen_color: str,
+        image: np.ndarray,
+        alpha_hint: Optional[np.ndarray],
+    ) -> str:
+        color = self._normalize_screen_color(screen_color, allow_auto=True)
+        if color != "auto":
+            return color
+        if self._engine is not None and self.engine_screen_color in {"green", "blue"}:
+            return str(self.engine_screen_color)
+        if alpha_hint is None:
+            logger.warning("CorridorKey: auto screen_color has no alpha hint sample; defaulting to green")
+            return "green"
+        try:
+            from CorridorKeyModule.core.color_utils import estimate_screen_color
+            detected = str(estimate_screen_color(np.asarray(image), np.asarray(alpha_hint))).strip().lower()
+            return detected if detected in {"green", "blue"} else "green"
+        except Exception as exc:
+            logger.warning("CorridorKey: auto screen_color detection failed (%s); defaulting to green", exc)
+            return "green"
     
     def load_engine(
         self,
         force_reload: bool = False,
         use_refiner: bool = True,
+        screen_color: str = "green",
     ) -> CorridorKeyEngine:
         """Load or return cached CorridorKey engine.
         
@@ -252,10 +338,12 @@ class CorridorKeyService:
         """
         # Fast path: already loaded with matching config — skip device check entirely.
         requested_use_refiner = bool(use_refiner)
+        requested_screen_color = self._normalize_screen_color(screen_color)
         if (
             self._engine is not None
             and not force_reload
             and self.engine_use_refiner == requested_use_refiner
+            and self.engine_screen_color == requested_screen_color
         ):
             return self._engine
 
@@ -282,6 +370,14 @@ class CorridorKeyService:
                 requested_use_refiner,
             )
             force_reload = True
+
+        if self.engine_screen_color is not None and self.engine_screen_color != requested_screen_color:
+            logger.info(
+                "CorridorKey: screen_color changed %s -> %s, reloading engine",
+                self.engine_screen_color,
+                requested_screen_color,
+            )
+            force_reload = True
         
         # Thread-safe loading with lock
         if CorridorKeyService._lock is None:
@@ -290,7 +386,12 @@ class CorridorKeyService:
         
         with CorridorKeyService._lock:
             # Double-check after acquiring lock
-            if self._engine is not None and not force_reload:
+            if (
+                self._engine is not None
+                and not force_reload
+                and self.engine_use_refiner == requested_use_refiner
+                and self.engine_screen_color == requested_screen_color
+            ):
                 return self._engine
             
             if CorridorKeyEngine is None:
@@ -303,8 +404,9 @@ class CorridorKeyService:
                 )
             
             # Lazy-load checkpoint path if not found yet
-            if self.checkpoint_path is None:
-                self.checkpoint_path = self._find_checkpoint()
+            if requested_screen_color not in self._checkpoint_paths:
+                self._checkpoint_paths[requested_screen_color] = self._find_checkpoint(requested_screen_color)
+            self.checkpoint_path = self._checkpoint_paths[requested_screen_color]
             
             # Verify checkpoint file exists and is readable
             checkpoint_path_obj = Path(self.checkpoint_path)
@@ -336,7 +438,7 @@ class CorridorKeyService:
             except Exception as e:
                 logger.warning(f"CorridorKey: Could not validate checkpoint with torch.load: {e}")
             
-            logger.info(f"CorridorKey: Loading engine from {self.checkpoint_path}")
+            logger.info(f"CorridorKey: Loading {requested_screen_color} engine from {self.checkpoint_path}")
             
             try:
                 self._engine = CorridorKeyEngine(
@@ -349,6 +451,7 @@ class CorridorKeyService:
                 )
                 
                 self.engine_use_refiner = requested_use_refiner
+                self.engine_screen_color = requested_screen_color
                 logger.info("CorridorKey: Engine loaded successfully")
                 return self._engine
             
@@ -367,6 +470,7 @@ class CorridorKeyService:
         refiner_strength: float = 1.0,
         use_refiner: bool = True,
         input_is_linear: bool = False,
+        screen_color: str = "green",
         _is_retry: bool = False,
     ) -> dict[str, np.ndarray]:
         """Process a single frame with CorridorKey.
@@ -394,16 +498,7 @@ class CorridorKeyService:
         """
         if not _is_retry:
             CorridorKeyService._RUNTIME_NOTICE = ""
-        engine = self.load_engine(use_refiner=use_refiner)
-        
-        # Safety check: ensure engine has model (catch silent initialization failures)
-        if not hasattr(engine, "model"):
-            raise RuntimeError(
-                "CorridorKey engine loaded but has no 'model' attribute. "
-                "The checkpoint may have failed to load during engine initialization. "
-                f"Device: {self.device}, Checkpoint: {self.checkpoint_path}"
-            )
-        
+
         # Validate inputs
         if image.ndim != 3 or image.shape[2] != 3:
             raise ValueError(
@@ -448,21 +543,41 @@ class CorridorKeyService:
         if alpha_hint is None:
             raise ValueError("CorridorKey requires alpha_hint (mask_linear)")
 
+        resolved_screen_color = self._resolve_screen_color_for_frame(screen_color, image, alpha_hint)
+        engine = self.load_engine(use_refiner=use_refiner, screen_color=resolved_screen_color)
+        screen_channel = self._screen_channel_for_color(resolved_screen_color)
+
+        # Safety check: ensure engine has model (catch silent initialization failures)
+        if not hasattr(engine, "model"):
+            raise RuntimeError(
+                "CorridorKey engine loaded but has no 'model' attribute. "
+                "The checkpoint may have failed to load during engine initialization. "
+                f"Device: {self.device}, Checkpoint: {self.checkpoint_path}"
+            )
+
         # process_frame expects despill in 0..1 range; our UI uses 0..10.
         despill_01 = max(0.0, min(1.0, float(despill_strength)))
 
         try:
             with torch.inference_mode():
-                raw_output = engine.process_frame(
-                    image=image,
-                    mask_linear=alpha_hint,
-                    refiner_scale=float(refiner_strength),
-                    input_is_linear=bool(input_is_linear),
-                    fg_is_straight=True,
-                    despill_strength=despill_01,
-                    auto_despeckle=bool(despeckle),
-                    despeckle_size=int(despeckle_size),
-                )
+                frame_kwargs = {
+                    "image": image,
+                    "mask_linear": alpha_hint,
+                    "refiner_scale": float(refiner_strength),
+                    "input_is_linear": bool(input_is_linear),
+                    "fg_is_straight": True,
+                    "despill_strength": despill_01,
+                    "auto_despeckle": bool(despeckle),
+                    "despeckle_size": int(despeckle_size),
+                }
+                if self._process_frame_accepts_kw(engine, "screen_channel"):
+                    frame_kwargs["screen_channel"] = screen_channel
+                elif screen_channel != 1:
+                    raise RuntimeError(
+                        "This CorridorKey runtime does not support blue-screen processing. "
+                        "Update upstream CorridorKey to a build with screen_channel/screen_color support."
+                    )
+                raw_output = engine.process_frame(**frame_kwargs)
 
             if not isinstance(raw_output, dict):
                 raise RuntimeError(f"Unexpected CorridorKey output type: {type(raw_output)}")
@@ -500,6 +615,7 @@ class CorridorKeyService:
                 CorridorKeyService._RUNTIME_NOTICE = str(e)
                 self.device = torch.device("cpu")
                 self._engine = None
+                self.engine_screen_color = None
                 self.engine_use_refiner = None
                 try:
                     return self.process_frame(
@@ -511,6 +627,7 @@ class CorridorKeyService:
                         refiner_strength=refiner_strength,
                         use_refiner=use_refiner,
                         input_is_linear=input_is_linear,
+                        screen_color=resolved_screen_color,
                         _is_retry=True,
                     )
                 except Exception as retry_error:
@@ -530,6 +647,8 @@ class CorridorKeyService:
         """
         if self._engine is not None:
             self._engine = None
+            self.engine_screen_color = None
+            self.engine_use_refiner = None
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             logger.info("CorridorKey: Engine unloaded from memory")

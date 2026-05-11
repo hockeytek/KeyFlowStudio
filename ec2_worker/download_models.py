@@ -72,37 +72,60 @@ _BIREFNET_REPOS = {
     "Portrait":         "ZhengPeng7/BiRefNet-portrait",
 }
 
-_CORRIDORKEY_CHECKPOINT_FILENAMES = (
+_CORRIDORKEY_GREEN_CHECKPOINT_FILENAMES = (
+    "CorridorKey_v1.0.safetensors",
     "CorridorKey_v1.0.pth",
     "CorridorKey.pth",
     "corridorkey.pth",
 )
+_CORRIDORKEY_BLUE_CHECKPOINT_FILENAMES = (
+    "CorridorKeyBlue_1.0.safetensors",
+    "CorridorKeyBlue_1.0.pth",
+)
 _CORRIDORKEY_REPO_ID = "nikopueringer/CorridorKey_v1.0"
+_CORRIDORKEY_BLUE_REPO_ID = "nikopueringer/CorridorKeyBlue_1.0"
 
 
-def download_corridorkey():
-    """Download CorridorKey v1.0 checkpoint (~300 MB) from HuggingFace."""
+def _download_corridorkey_variant(repo_id: str, filenames: tuple[str, ...], label: str) -> Path:
     from huggingface_hub import hf_hub_download
 
     out_dir = MODELS_DIR / "corridorkey" / "v1.0"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check if any known filename already present
-    for fname in _CORRIDORKEY_CHECKPOINT_FILENAMES:
+    for fname in filenames:
         if (out_dir / fname).exists():
-            print(f"✅ CorridorKey already exists: {out_dir / fname}")
-            return
+            print(f"✅ CorridorKey {label} already exists: {out_dir / fname}")
+            return out_dir / fname
 
-    target_filename = _CORRIDORKEY_CHECKPOINT_FILENAMES[0]
-    print(f"\n📥 Downloading CorridorKey checkpoint from {_CORRIDORKEY_REPO_ID}")
+    target_filename = filenames[0]
+    print(f"\n📥 Downloading CorridorKey {label} checkpoint from {repo_id}")
     print(f"   → {out_dir / target_filename}")
 
     downloaded = hf_hub_download(
-        repo_id=_CORRIDORKEY_REPO_ID,
+        repo_id=repo_id,
         filename=target_filename,
         local_dir=str(out_dir),
     )
-    print(f"✅ CorridorKey saved: {downloaded} ({Path(downloaded).stat().st_size // 1_000_000} MB)")
+    print(
+        f"✅ CorridorKey {label} saved: {downloaded} "
+        f"({Path(downloaded).stat().st_size // 1_000_000} MB)"
+    )
+    return Path(downloaded)
+
+
+def download_corridorkey():
+    """Download CorridorKey green and blue checkpoints from HuggingFace."""
+    green = _download_corridorkey_variant(
+        _CORRIDORKEY_REPO_ID,
+        _CORRIDORKEY_GREEN_CHECKPOINT_FILENAMES,
+        "green",
+    )
+    _download_corridorkey_variant(
+        _CORRIDORKEY_BLUE_REPO_ID,
+        _CORRIDORKEY_BLUE_CHECKPOINT_FILENAMES,
+        "blue",
+    )
+    return green
 
 
 def download_birefnet(preset: str = "General"):

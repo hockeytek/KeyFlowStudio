@@ -102,6 +102,60 @@ class InferenceWorkerFailurePathTests(unittest.TestCase):
         self.assertIn("comp", result)
         self.assertNotIn("processed", result)
 
+    def test_corridorkey_blue_passes_screen_channel_to_engine(self):
+        service = CorridorKeyService()
+        captured = {}
+
+        class _Engine:
+            model = object()
+
+            @staticmethod
+            def process_frame(**kwargs):
+                captured.update(kwargs)
+                return {
+                    "alpha": np.ones((2, 2, 1), dtype=np.float32),
+                }
+
+        original_load_engine = service.load_engine
+        try:
+            service._engine = None
+            service.engine_screen_color = None
+            service.load_engine = lambda **_kwargs: _Engine()
+            service.process_frame(
+                np.zeros((2, 2, 3), dtype=np.uint8),
+                alpha_hint=np.ones((2, 2), dtype=np.float32),
+                screen_color="blue",
+            )
+        finally:
+            service.load_engine = original_load_engine
+
+        self.assertEqual(captured.get("screen_channel"), 2)
+
+    def test_corridorkey_blue_requires_new_runtime_screen_channel(self):
+        service = CorridorKeyService()
+
+        class _Engine:
+            model = object()
+
+            @staticmethod
+            def process_frame(image, mask_linear, refiner_scale, input_is_linear, fg_is_straight,
+                              despill_strength, auto_despeckle, despeckle_size):
+                return {"alpha": np.ones((2, 2, 1), dtype=np.float32)}
+
+        original_load_engine = service.load_engine
+        try:
+            service._engine = None
+            service.engine_screen_color = None
+            service.load_engine = lambda **_kwargs: _Engine()
+            with self.assertRaisesRegex(RuntimeError, "blue-screen"):
+                service.process_frame(
+                    np.zeros((2, 2, 3), dtype=np.uint8),
+                    alpha_hint=np.ones((2, 2), dtype=np.float32),
+                    screen_color="blue",
+                )
+        finally:
+            service.load_engine = original_load_engine
+
     def test_corridorkey_requires_alphahint_or_deferred_source(self):
         # Use __new__ to keep this unit test lightweight and focused on validation path.
         worker = InferenceWorker.__new__(InferenceWorker)

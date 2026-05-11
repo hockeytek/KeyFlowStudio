@@ -1531,6 +1531,14 @@ STRINGS: dict[str, dict[str, str]] = {
     "corridorkey_input_colorspace_auto": {"ru": "Авто", "en": "Auto"},
     "corridorkey_input_colorspace_srgb": {"ru": "sRGB", "en": "sRGB"},
     "corridorkey_input_colorspace_linear": {"ru": "Линейный", "en": "Linear"},
+    "corridorkey_screen_color": {"ru": "Экран", "en": "Screen"},
+    "corridorkey_screen_color_tooltip": {
+        "ru": "Цвет хромакейного экрана. Green сохраняет поведение старых проектов. Auto/Blue требуют свежий Torch backend CorridorKey; blue на MLX upstream пока не поддержан.",
+        "en": "Chroma screen color. Green preserves older project behavior. Auto/Blue require a current Torch CorridorKey backend; upstream MLX blue support is not available yet.",
+    },
+    "corridorkey_screen_color_auto": {"ru": "Авто", "en": "Auto"},
+    "corridorkey_screen_color_green": {"ru": "Green", "en": "Green"},
+    "corridorkey_screen_color_blue": {"ru": "Blue", "en": "Blue"},
     "corridorkey_hint_dilate_radius": {"ru": "Dilate маски", "en": "Hint Dilate"},
     "corridorkey_hint_dilate_radius_tooltip": {
         "ru": "Расширение маски-подсказки (BiRefNet/SAM) перед подачей в CorridorKey. Чуть расширенная маска даёт модели больше контекста на краях. 0 = отключено.",

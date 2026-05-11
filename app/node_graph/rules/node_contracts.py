@@ -273,6 +273,7 @@ CORRIDORKEY = NodeContract(
         "preset": "balanced",
         "alpha_hint_mode": "auto",
         "input_colorspace": "auto",
+        "screen_color": "green",
         "despill_strength": 0.5,
         "despeckle": True,
         "despeckle_size": 400,

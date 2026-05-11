@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import inspect
 import json
 import logging
 import os
@@ -243,17 +244,26 @@ def system_logs(after_seq: int = 0, lines: int = 200):
 
 
 # ── Model info ────────────────────────────────────────────────────────────────
-_CORRIDORKEY_CHECKPOINT_FILENAMES = (
+_CORRIDORKEY_GREEN_CHECKPOINT_FILENAMES = (
+    "CorridorKey_v1.0.safetensors",
     "CorridorKey_v1.0.pth",
     "CorridorKey.pth",
     "corridorkey.pth",
 )
+_CORRIDORKEY_BLUE_CHECKPOINT_FILENAMES = (
+    "CorridorKeyBlue_1.0.safetensors",
+    "CorridorKeyBlue_1.0.pth",
+)
 
 
-def _find_corridorkey_checkpoint() -> Optional[Path]:
-    """Return the first CorridorKey .pth file found under the models dir, or None."""
+def _corridorkey_checkpoint_filenames(screen_color: str) -> tuple[str, ...]:
+    return _CORRIDORKEY_BLUE_CHECKPOINT_FILENAMES if screen_color == "blue" else _CORRIDORKEY_GREEN_CHECKPOINT_FILENAMES
+
+
+def _find_corridorkey_checkpoint(screen_color: str = "green") -> Optional[Path]:
+    """Return the first CorridorKey checkpoint found under the models dir, or None."""
     base = _MODELS_DIR / "corridorkey" / "v1.0"
-    for fname in _CORRIDORKEY_CHECKPOINT_FILENAMES:
+    for fname in _corridorkey_checkpoint_filenames(screen_color):
         p = base / fname
         if p.exists():
             return p
@@ -263,10 +273,14 @@ def _find_corridorkey_checkpoint() -> Optional[Path]:
 @app.get("/models")
 def list_models():
     """List available (downloaded) models."""
+    corridorkey_green = _find_corridorkey_checkpoint("green") is not None
+    corridorkey_blue = _find_corridorkey_checkpoint("blue") is not None
     available = {
         "matanyone2": (_MODELS_DIR / "matanyone2" / "v1" / "matanyone2.pth").exists(),
         "birefnet":   (_MODELS_DIR / "birefnet").exists(),
-        "corridorkey": _find_corridorkey_checkpoint() is not None,
+        "corridorkey": corridorkey_green and corridorkey_blue,
+        "corridorkey_green": corridorkey_green,
+        "corridorkey_blue": corridorkey_blue,
         "gvm":        (_MODELS_DIR / "gvm").exists(),
     }
     return {"models": available, "models_dir": str(_MODELS_DIR)}
@@ -912,6 +926,7 @@ _CLOUD_CORRIDORKEY_DEFAULTS: dict[str, Any] = {
     "use_refiner": True,
     "hint_dilate_radius": 0,
     "input_colorspace": "auto",
+    "screen_color": "green",
 }
 
 
@@ -1107,12 +1122,14 @@ def _run_corridorkey_phase(
     hint_dilate_radius = int(corridorkey_props.get("hint_dilate_radius", ck_defaults["hint_dilate_radius"]))
     input_colorspace = str(corridorkey_props.get("input_colorspace", ck_defaults["input_colorspace"])).strip().lower()
     input_is_linear = input_colorspace == "linear"
+    screen_color = str(corridorkey_props.get("screen_color", ck_defaults["screen_color"])).strip().lower()
+    if screen_color not in {"auto", "green", "blue"}:
+        screen_color = "green"
 
     service = _get_corridorkey_service()
     job.stage = "loading corridorkey"
-    job.log("Loading CorridorKey model...")
+    job.log(f"Loading CorridorKey model (screen_color={screen_color})...")
     job.log(f"CorridorKey device: {DEVICE}")
-    service.load_model(device=DEVICE)
 
     def _to_rgb_uint8(bgr_or_other: np.ndarray) -> np.ndarray:
         if bgr_or_other.ndim == 2:
@@ -1225,6 +1242,7 @@ def _run_corridorkey_phase(
                 refiner_strength=float(corridorkey_props.get("refiner_strength", ck_defaults["refiner_strength"])),
                 use_refiner=bool(corridorkey_props.get("use_refiner", ck_defaults["use_refiner"])),
                 input_is_linear=input_is_linear,
+                screen_color=screen_color,
             )
 
             stem = frame_paths[idx].stem or f"{idx:05d}"
@@ -1756,19 +1774,68 @@ class _WorkerCorridorKeyService:
     def __init__(self) -> None:
         self._engine = None
         self._engine_use_refiner: bool | None = None
+        self._engine_screen_color: str | None = None
 
-    def load_model(self, *, device: str, use_refiner: bool = True) -> None:
+    @staticmethod
+    def _normalize_screen_color(screen_color: str | None, *, allow_auto: bool = False) -> str:
+        color = str(screen_color or "green").strip().lower()
+        allowed = {"green", "blue"} | ({"auto"} if allow_auto else set())
+        if color not in allowed:
+            valid = ", ".join(sorted(allowed))
+            raise ValueError(f"Unknown CorridorKey screen_color {color!r}. Valid: {valid}")
+        return color
+
+    @staticmethod
+    def _screen_channel_for_color(screen_color: str) -> int:
+        return 2 if _WorkerCorridorKeyService._normalize_screen_color(screen_color) == "blue" else 1
+
+    @staticmethod
+    def _process_frame_accepts_kw(engine: object, keyword: str) -> bool:
+        try:
+            sig = inspect.signature(engine.process_frame)  # type: ignore[attr-defined]
+        except Exception:
+            return False
+        return keyword in sig.parameters or any(
+            param.kind == inspect.Parameter.VAR_KEYWORD
+            for param in sig.parameters.values()
+        )
+
+    def _resolve_screen_color_for_frame(
+        self,
+        screen_color: str,
+        image: np.ndarray,
+        alpha_hint: np.ndarray,
+    ) -> str:
+        color = self._normalize_screen_color(screen_color, allow_auto=True)
+        if color != "auto":
+            return color
+        if self._engine is not None and self._engine_screen_color in {"green", "blue"}:
+            return str(self._engine_screen_color)
+        try:
+            from CorridorKeyModule.core.color_utils import estimate_screen_color
+            detected = str(estimate_screen_color(np.asarray(image), np.asarray(alpha_hint))).strip().lower()
+            return detected if detected in {"green", "blue"} else "green"
+        except Exception as exc:
+            logger.warning("CorridorKey auto screen_color detection failed (%s); defaulting to green", exc)
+            return "green"
+
+    def load_model(self, *, device: str, use_refiner: bool = True, screen_color: str = "green") -> None:
         requested_use_refiner = bool(use_refiner)
-        if self._engine is not None and self._engine_use_refiner == requested_use_refiner:
+        requested_screen_color = self._normalize_screen_color(screen_color)
+        if (
+            self._engine is not None
+            and self._engine_use_refiner == requested_use_refiner
+            and self._engine_screen_color == requested_screen_color
+        ):
             return
 
-        if self._engine is not None and self._engine_use_refiner != requested_use_refiner:
+        if self._engine is not None:
             self.unload()
 
-        checkpoint = _find_corridorkey_checkpoint()
+        checkpoint = _find_corridorkey_checkpoint(requested_screen_color)
         if checkpoint is None:
             raise RuntimeError(
-                "CorridorKey weights are missing on the cloud server. "
+                f"CorridorKey {requested_screen_color} weights are missing on the cloud server. "
                 "Open CorridorKey node in Cloud mode and click 'Check/Download model', then run again."
             )
 
@@ -1791,6 +1858,7 @@ class _WorkerCorridorKeyService:
             model_precision=torch.float32,
         )
         self._engine_use_refiner = requested_use_refiner
+        self._engine_screen_color = requested_screen_color
 
     def process_frame(
         self,
@@ -1803,26 +1871,41 @@ class _WorkerCorridorKeyService:
         refiner_strength: float,
         use_refiner: bool,
         input_is_linear: bool,
+        screen_color: str = "green",
     ) -> dict[str, np.ndarray]:
-        if self._engine is None or self._engine_use_refiner != bool(use_refiner):
-            self.load_model(device=DEVICE, use_refiner=bool(use_refiner))
+        resolved_screen_color = self._resolve_screen_color_for_frame(screen_color, image, alpha_hint)
+        if (
+            self._engine is None
+            or self._engine_use_refiner != bool(use_refiner)
+            or self._engine_screen_color != resolved_screen_color
+        ):
+            self.load_model(device=DEVICE, use_refiner=bool(use_refiner), screen_color=resolved_screen_color)
 
         despill_01 = max(0.0, min(1.0, float(despill_strength)))
+        screen_channel = self._screen_channel_for_color(resolved_screen_color)
 
         import torch
         with torch.inference_mode():
-            result = self._engine.process_frame(
-                image=image,
-                mask_linear=alpha_hint,
-                refiner_scale=float(refiner_strength),
-                input_is_linear=bool(input_is_linear),
-                fg_is_straight=True,
-                despill_strength=despill_01,
-                auto_despeckle=bool(despeckle),
-                despeckle_size=int(despeckle_size),
-                generate_comp=True,
-                post_process_on_gpu=True,
-            )
+            frame_kwargs = {
+                "image": image,
+                "mask_linear": alpha_hint,
+                "refiner_scale": float(refiner_strength),
+                "input_is_linear": bool(input_is_linear),
+                "fg_is_straight": True,
+                "despill_strength": despill_01,
+                "auto_despeckle": bool(despeckle),
+                "despeckle_size": int(despeckle_size),
+                "generate_comp": True,
+                "post_process_on_gpu": True,
+            }
+            if self._process_frame_accepts_kw(self._engine, "screen_channel"):
+                frame_kwargs["screen_channel"] = screen_channel
+            elif screen_channel != 1:
+                raise RuntimeError(
+                    "This CorridorKey runtime does not support blue-screen processing. "
+                    "Update upstream CorridorKey to a build with screen_channel/screen_color support."
+                )
+            result = self._engine.process_frame(**frame_kwargs)
 
         if not isinstance(result, dict):
             raise RuntimeError(f"Unexpected CorridorKey output type: {type(result)}")
@@ -1882,6 +1965,7 @@ class _WorkerCorridorKeyService:
             return
         self._engine = None
         self._engine_use_refiner = None
+        self._engine_screen_color = None
         try:
             import torch
             if torch.cuda.is_available():

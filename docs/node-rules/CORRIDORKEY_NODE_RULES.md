@@ -34,6 +34,14 @@
 - `Comp`
 - `Processed`
 
+Актуальный upstream CorridorKey поддерживает выбор цвета экрана:
+
+- `green` — классический зеленый checkpoint `CorridorKey_v1.0.safetensors`
+- `blue` — отдельный blue-screen checkpoint `CorridorKeyBlue_1.0.safetensors`
+- `auto` — определение green/blue по первому кадру и alpha hint
+
+В KeyFlow Studio default остается `green`, чтобы старые проекты и сохраненные графы не меняли результат после обновления. Blue-screen режим требует свежий Torch backend CorridorKey; upstream MLX blue пока не поддерживает.
+
 ## Что Является Контрактом В Нашем Проекте (Локальная Интеграция)
 
 Локальный нодовый контракт в KeyFlow Studio:

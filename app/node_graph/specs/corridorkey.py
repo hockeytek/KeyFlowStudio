@@ -37,6 +37,7 @@ SPEC = NodeSpec(
         "preset": "balanced",
         "alpha_hint_mode": "auto",  # auto|batch|staged
         "input_colorspace": "auto",  # auto|srgb|linear
+        "screen_color": "green",  # green|blue|auto; green preserves older project behavior
         
         # Main parameters
         "despill_strength": 0.5,  # 0-1, removes green spill

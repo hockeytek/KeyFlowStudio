@@ -2335,6 +2335,9 @@ class InferenceWorker(QObject):
         input_colorspace = str(properties.get("input_colorspace", "auto")).strip().lower()
         if input_colorspace not in {"auto", "srgb", "linear"}:
             input_colorspace = "auto"
+        screen_color = str(properties.get("screen_color", "green")).strip().lower()
+        if screen_color not in {"auto", "green", "blue"}:
+            screen_color = "green"
 
         if input_colorspace == "auto":
             # Auto-detect from source path extension AND first-frame dtype.
@@ -2686,6 +2689,7 @@ class InferenceWorker(QObject):
                     refiner_strength=refiner_strength,
                     use_refiner=use_refiner,
                     input_is_linear=input_is_linear,
+                    screen_color=screen_color,
                 )
                 if not corridorkey_runtime_notice_emitted:
                     runtime_notice = ""

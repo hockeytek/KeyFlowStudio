@@ -94,11 +94,18 @@ class _CorridorKeyDownloadWorker(QObject):
     finished = Signal(str)
     error = Signal(str)
 
+    def __init__(self, screen_color: str = "green") -> None:
+        super().__init__()
+        self.screen_color = screen_color
+
     def run(self) -> None:
         from app.services.corridorkey_service import CorridorKeyService
 
         try:
-            checkpoint_path = CorridorKeyService.ensure_checkpoint_available(self.progress.emit)
+            checkpoint_path = CorridorKeyService.ensure_checkpoint_available(
+                self.progress.emit,
+                screen_color=self.screen_color,
+            )
             self.finished.emit(str(checkpoint_path))
         except Exception as exc:
             details = str(exc).strip() or repr(exc)
@@ -180,6 +187,16 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         self.input_colorspace_combo.setFixedWidth(self._combo_width)
         self.input_colorspace_combo.setFixedHeight(self._field_height)
         self._apply_reference_combo_style(self.input_colorspace_combo)
+
+        self.screen_color_label = QLabel(self)
+        self.screen_color_combo = QComboBox(self)
+        self.screen_color_combo.addItem("Auto", "auto")
+        self.screen_color_combo.addItem("Green", "green")
+        self.screen_color_combo.addItem("Blue", "blue")
+        self.screen_color_combo.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.screen_color_combo.setFixedWidth(self._combo_width)
+        self.screen_color_combo.setFixedHeight(self._field_height)
+        self._apply_reference_combo_style(self.screen_color_combo)
 
         self.hint_dilate_radius_label = QLabel(self)
         self.hint_dilate_radius_spin = QSpinBox(self)
@@ -364,6 +381,7 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         self._preset_sync_in_progress = False
 
         self.preset_combo.currentIndexChanged.connect(self._on_preset_changed)
+        self.screen_color_combo.currentIndexChanged.connect(lambda _index: self._refresh_download_button_state())
         self.despill_strength_spin.valueChanged.connect(self._sync_preset_selection)
         self.despeckle_check.toggled.connect(self._sync_preset_selection)
         self.despeckle_size_spin.valueChanged.connect(self._sync_preset_selection)
@@ -373,6 +391,7 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         self._add_form_row(self.main_form, self.preset_label, self.preset_combo)
         self._add_form_row(self.main_form, self.alpha_hint_mode_label, self.alpha_hint_mode_combo)
         self._add_form_row(self.main_form, self.input_colorspace_label, self.input_colorspace_combo)
+        self._add_form_row(self.main_form, self.screen_color_label, self.screen_color_combo)
         self._add_form_row(self.main_form, self.hint_dilate_radius_label, self.hint_dilate_radius_field)
 
         self._add_form_row(self.matte_form, self.despill_strength_label, self.despill_strength_field)
@@ -415,6 +434,7 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
             self.preset_label,
             self.alpha_hint_mode_label,
             self.input_colorspace_label,
+            self.screen_color_label,
             self.hint_dilate_radius_label,
             self.despill_strength_label,
             self.despeckle_label,
@@ -774,6 +794,10 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         self.input_colorspace_combo.setItemText(0, self._tr("corridorkey_input_colorspace_auto"))
         self.input_colorspace_combo.setItemText(1, self._tr("corridorkey_input_colorspace_srgb"))
         self.input_colorspace_combo.setItemText(2, self._tr("corridorkey_input_colorspace_linear"))
+        self.screen_color_label.setText(self._tr("corridorkey_screen_color"))
+        self.screen_color_combo.setItemText(0, self._tr("corridorkey_screen_color_auto"))
+        self.screen_color_combo.setItemText(1, self._tr("corridorkey_screen_color_green"))
+        self.screen_color_combo.setItemText(2, self._tr("corridorkey_screen_color_blue"))
         self.hint_dilate_radius_label.setText(self._tr("corridorkey_hint_dilate_radius"))
         self.despill_strength_label.setText(self._tr("corridorkey_despill_strength"))
         self.despeckle_label.setText("")
@@ -793,6 +817,8 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         self.preset_label.setToolTip(self._tr("corridorkey_preset_label_tooltip"))
         self.alpha_hint_mode_label.setToolTip(self._tr("corridorkey_alpha_hint_mode_tooltip"))
         self.input_colorspace_label.setToolTip(self._tr("corridorkey_input_colorspace_tooltip"))
+        self.screen_color_label.setToolTip(self._tr("corridorkey_screen_color_tooltip"))
+        self.screen_color_combo.setToolTip(self._tr("corridorkey_screen_color_tooltip"))
         self.hint_dilate_radius_label.setToolTip(self._tr("corridorkey_hint_dilate_radius_tooltip"))
         self.despill_strength_label.setToolTip(self._tr("corridorkey_despill_strength_tooltip"))
         self.despeckle_label.setToolTip("")
@@ -916,8 +942,10 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         self._update_preset_tooltip(matched_preset)
 
     def _refresh_download_button_state(self) -> None:
+        screen_color = str(self.screen_color_combo.currentData() or "green")
         if self._is_cloud_mode():
-            if getattr(self, "_cloud_weights_ready", False):
+            models_info = getattr(self, "_cloud_models_info", {})
+            if self._cloud_corridorkey_weights_ready(screen_color, models_info):
                 self.download_button.setText(self._tr("corridorkey_download_button_ready_cloud"))
                 self.download_button.setToolTip(self._tr("corridorkey_download_button_ready_tooltip"))
             else:
@@ -927,13 +955,28 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
 
         from app.services.corridorkey_service import CorridorKeyService
 
-        status = CorridorKeyService.get_checkpoint_status()
+        status = CorridorKeyService.get_checkpoint_status(screen_color=screen_color)
         if status.get("state") == "ready":
             self.download_button.setText(self._tr("corridorkey_download_button_ready"))
             self.download_button.setToolTip(self._tr("corridorkey_download_button_ready_tooltip"))
         else:
             self.download_button.setText(self._tr("corridorkey_download_button_missing"))
             self.download_button.setToolTip(self._tr("corridorkey_download_button_missing_tooltip"))
+
+    @staticmethod
+    def _cloud_corridorkey_weights_ready(screen_color: str, models_info: dict) -> bool:
+        if not isinstance(models_info, dict):
+            return bool(models_info)
+        has_green = bool(models_info.get("corridorkey_green"))
+        has_blue = bool(models_info.get("corridorkey_blue"))
+        legacy_ready = bool(models_info.get("corridorkey")) and not (
+            "corridorkey_green" in models_info or "corridorkey_blue" in models_info
+        )
+        if screen_color == "blue":
+            return has_blue or legacy_ready
+        if screen_color == "auto":
+            return bool(models_info.get("corridorkey")) or (has_green and has_blue) or legacy_ready
+        return has_green or legacy_ready
 
     def _download_model(self) -> None:
         if self._is_cloud_mode():
@@ -945,7 +988,8 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
 
         from app.services.corridorkey_service import CorridorKeyService
 
-        status = CorridorKeyService.get_checkpoint_status()
+        screen_color = str(self.screen_color_combo.currentData() or "green")
+        status = CorridorKeyService.get_checkpoint_status(screen_color=screen_color)
         if status.get("state") == "ready":
             self._refresh_download_button_state()
             QMessageBox.information(
@@ -959,6 +1003,7 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         self._ensure_download_worker()
         if self._download_worker is None:
             return
+        self._download_worker.screen_color = screen_color
 
         self._download_active = True
         self.download_button.setEnabled(False)
@@ -972,7 +1017,7 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
             return
 
         self._download_thread = QThread(self)
-        self._download_worker = _CorridorKeyDownloadWorker()
+        self._download_worker = _CorridorKeyDownloadWorker(str(self.screen_color_combo.currentData() or "green"))
         self._download_worker.moveToThread(self._download_thread)
 
         self._start_download.connect(self._download_worker.run, Qt.ConnectionType.QueuedConnection)
@@ -1051,6 +1096,12 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         idx = self.input_colorspace_combo.findData(input_colorspace)
         self.input_colorspace_combo.setCurrentIndex(idx if idx >= 0 else 0)
 
+        screen_color = str(props.get("screen_color", "green")).strip().lower()
+        if screen_color not in {"auto", "green", "blue"}:
+            screen_color = "green"
+        idx = self.screen_color_combo.findData(screen_color)
+        self.screen_color_combo.setCurrentIndex(idx if idx >= 0 else self.screen_color_combo.findData("green"))
+
         despill_strength = float(props.get("despill_strength", 0.5))
         self.despill_strength_spin.setValue(despill_strength)
 
@@ -1086,6 +1137,7 @@ class CorridorKeyPropertiesPanel(QWidget, NodePanelMixin):
         props["preset"] = self._current_preset_key()
         props["alpha_hint_mode"] = self.alpha_hint_mode_combo.currentData() or "auto"
         props["input_colorspace"] = self.input_colorspace_combo.currentData() or "auto"
+        props["screen_color"] = self.screen_color_combo.currentData() or "green"
         props["despill_strength"] = self.despill_strength_spin.value()
         props["despeckle"] = self.despeckle_check.isChecked()
         props["despeckle_size"] = self.despeckle_size_spin.value()

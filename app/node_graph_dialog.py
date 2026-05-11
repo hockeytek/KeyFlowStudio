@@ -1492,6 +1492,7 @@ class NodeGraphDialog(QDialog):
 
         self.corridorkey_props_panel.alpha_hint_mode_combo.currentIndexChanged.connect(self._apply_properties_from_ui)
         self.corridorkey_props_panel.input_colorspace_combo.currentIndexChanged.connect(self._apply_properties_from_ui)
+        self.corridorkey_props_panel.screen_color_combo.currentIndexChanged.connect(self._apply_properties_from_ui)
         self.corridorkey_props_panel.preset_combo.currentIndexChanged.connect(self._apply_properties_from_ui)
         self.corridorkey_props_panel.despill_strength_spin.valueChanged.connect(self._apply_properties_from_ui)
         self.corridorkey_props_panel.despeckle_check.toggled.connect(self._apply_properties_from_ui)
@@ -2586,10 +2587,11 @@ class NodeGraphDialog(QDialog):
             for panel, key in panels:
                 ready = bool(models.get(key))
                 # schedule UI update on the main thread
-                QTimer.singleShot(0, panel, lambda p=panel, r=ready: _apply(p, r))
+                QTimer.singleShot(0, panel, lambda p=panel, r=ready, m=models: _apply(p, r, m))
 
-        def _apply(panel, ready: bool) -> None:
+        def _apply(panel, ready: bool, models_info: dict) -> None:
             panel._cloud_weights_ready = ready
+            panel._cloud_models_info = models_info
             panel._refresh_download_button_state()
 
         threading.Thread(target=_worker, daemon=True).start()
