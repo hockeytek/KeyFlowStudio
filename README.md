@@ -126,6 +126,7 @@ Optional device override:
 
 - [Architecture](ARCHITECTURE.md)
 - [Node Graph Standard](docs/NODE_GRAPH_STANDARD.md)
+- [Node Rule Documents](docs/node-rules/)
 - [Installation](docs/installation.md)
 - [Model Setup](docs/models.md)
 - [Cloud GPU Setup](docs/cloud-gpu.md)

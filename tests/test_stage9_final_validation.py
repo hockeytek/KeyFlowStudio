@@ -356,7 +356,7 @@ class RegistryExecutionRulesTests(unittest.TestCase):
             self.assertIn(expected, types, f"'{expected}' должен быть в реестре")
 
     def test_birefnet_binarization_threshold_is_10(self):
-        """Порог 10 задокументирован в BIREFNET_NODE_RULES.md."""
+        """Порог 10 задокументирован в docs/node-rules/BIREFNET_NODE_RULES.md."""
         self.assertEqual(self.reg.birefnet_binarization_threshold(), 10)
 
     def test_birefnet_can_defer(self):

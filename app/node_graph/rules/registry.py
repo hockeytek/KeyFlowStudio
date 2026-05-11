@@ -187,7 +187,7 @@ class NodeRulesRegistry:
 
     def should_auto_propagate_sam_before_run(self) -> bool:
         """Check if SAM2 node should auto-propagate before Run.
-        (Rule from SAM_NODE_RULES.md)
+        (Rule from docs/node-rules/SAM_NODE_RULES.md)
         """
         sam_contract = get_contract("sam2")
         if sam_contract is None:
@@ -253,7 +253,7 @@ class NodeRulesRegistry:
         """Check if BiRefNet output goes only to CorridorKey.alphahint.
 
         If True, BiRefNet can be deferred to staged mode.
-        (Implementation of BIREFNET_NODE_RULES.md: "Staged Workflow")
+        (Implementation of docs/node-rules/BIREFNET_NODE_RULES.md: "Staged Workflow")
         """
         for node_id, node_data in nodes_by_id.items():
             if node_data.get("type") != "birefnet":

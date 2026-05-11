@@ -6,6 +6,7 @@ KeyFlow Studio больше не является только экраном з
 
 Главные документы по текущей системе:
 - [docs/NODE_GRAPH_STANDARD.md](docs/NODE_GRAPH_STANDARD.md) — основной стандарт нод, совместимости и runtime-ожиданий
+- [docs/node-rules/](docs/node-rules/) — model-specific заметки по поведению отдельных нод
 - [docs/archive/plan-nodeGraphStandardization.prompt.md](docs/archive/plan-nodeGraphStandardization.prompt.md) — архивный roadmap завершённой стандартизации
 - [docs/archive/STAGE6_PROGRESS.md](docs/archive/STAGE6_PROGRESS.md) — архивная история интеграционных этапов и тестового покрытия
 
@@ -19,6 +20,7 @@ KeyFlow Studio/
 ├── ARCHITECTURE.md                      # Этот файл
 ├── docs/
 │   ├── NODE_GRAPH_STANDARD.md           # Основной стандарт node graph
+│   ├── node-rules/                      # Model-specific правила нод
 │   └── archive/                         # Исторические планы и отчёты
 ├── app/
 │   ├── coordinators/
