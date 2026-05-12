@@ -5,6 +5,7 @@ from pathlib import Path
 import hashlib
 import numpy as np
 from PIL import Image
+from app.utils.write_paths import build_keyflow_internal_dir
 logger = logging.getLogger(__name__)
 
 
@@ -65,12 +66,25 @@ class Sam2GraphCoordinator:
             if normalized is None:
                 continue
             frame_masks[int(frame_idx)] = normalized
-        if not frame_masks and self._sam2.state.current_mask is not None:
-            idx = int(current_frame_index if current_frame_index is not None else self._get_frame_index())
-            normalized = self.normalize_mask_to_binary(self._sam2.state.current_mask)
-            if normalized is not None:
-                frame_masks[idx] = normalized
         return frame_masks
+
+    @staticmethod
+    def _mask_cache_dir(src: Path) -> Path:
+        return build_keyflow_internal_dir(src, "sam_graph_masks")
+
+    @staticmethod
+    def _cleanup_legacy_sidecar_paths(src: Path) -> None:
+        legacy_file = src.parent / f"{src.stem}__sam_graph_mask.png"
+        legacy_dir = src.parent / f"{src.stem}__sam_graph_masks"
+        try:
+            legacy_file.unlink(missing_ok=True)
+        except Exception:
+            pass
+        try:
+            if legacy_dir.exists() and legacy_dir.is_dir():
+                shutil.rmtree(legacy_dir)
+        except Exception:
+            pass
 
     def persist_masks(self, *, force_disk=False):
         mask_source_path = ""
@@ -79,8 +93,11 @@ class Sam2GraphCoordinator:
             return mask_source_path, mask_payloads
         input_path = self._get_input_path() or ""
         masks_now = list(self._sam2.state.added_masks or [])
-        if not masks_now and self._sam2.state.current_mask is not None:
-            masks_now = [(int(self._get_frame_index()), self._sam2.state.current_mask)]
+        if not self.has_connected_write_target():
+            if input_path:
+                self._cleanup_legacy_sidecar_paths(Path(input_path))
+            self._persist_masks_cache = None
+            return mask_source_path, mask_payloads
 
         cache_entries = []
         for frame_index, mask in masks_now:
@@ -107,18 +124,22 @@ class Sam2GraphCoordinator:
                 mask_source_path = mask_path
             else:
                 src = Path(input_path)
-                persistent = src.parent / f"{src.stem}__sam_graph_mask.png"
+                mask_dir = self._mask_cache_dir(src)
                 try:
+                    mask_dir.mkdir(parents=True, exist_ok=True)
+                    persistent = mask_dir / "sam_graph_mask.png"
                     shutil.copy2(mask_path, str(persistent))
+                    self._cleanup_legacy_sidecar_paths(src)
                     mask_source_path = str(persistent)
                 except Exception:
                     mask_source_path = mask_path
         if not masks_now or not input_path:
             return mask_source_path, mask_payloads
         src = Path(input_path)
-        mask_dir = src.parent / f"{src.stem}__sam_graph_masks"
+        mask_dir = self._mask_cache_dir(src)
         try:
             mask_dir.mkdir(parents=True, exist_ok=True)
+            self._cleanup_legacy_sidecar_paths(src)
         except Exception:
             return mask_source_path, mask_payloads
         valid_names = set()
@@ -185,8 +206,10 @@ class Sam2GraphCoordinator:
         dialog = self._get_dialog()
         if dialog is None or not callable(getattr(dialog, "sync_sam_runtime_state", None)):
             return
-        selected_rows = self.selected_graph_mask_rows()
-        if not selected_rows:
+        masks_now = list(self._sam2.state.added_masks or [])
+        has_sequence_masks = len({int(frame_idx) for frame_idx, _mask in masks_now}) > 1
+        selected_rows = [] if has_sequence_masks else self.selected_graph_mask_rows()
+        if not selected_rows and not has_sequence_masks:
             selected_rows = self._get_fallback_rows()
         self._syncing = True
         try:

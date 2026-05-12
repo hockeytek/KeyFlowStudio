@@ -1,6 +1,8 @@
 # KeyFlow Studio
 
-Qt-приложение для node-based видео keying и matting workflow на базе MatAnyone2, SAM, BiRefNet, CorridorKey и связанных сервисов.
+Qt-приложение для node-based видео keying, matting, mask generation и compositing workflow на базе MatAnyone2, SAM, BiRefNet, GVM, CorridorKey и связанных сервисов.
+
+Это публичная preview-версия KeyFlow Studio. Проект уже можно запускать из исходников или тестировать через release bundle, но модельные интеграции, packaging и контракты нод продолжают развиваться.
 
 Актуальные архитектурные документы:
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
@@ -39,6 +41,12 @@ brew install ffmpeg
 ```bash
 python main.py
 ```
+
+## Release Bundle
+
+Готовый macOS Intel preview bundle доступен на странице [GitHub Releases](https://github.com/hockeytek/KeyFlowStudio/releases). Приложение подписано ad-hoc и не notarized через Apple Developer ID, поэтому macOS может попросить подтвердить первый запуск через Open.
+
+Bundle включает код приложения и основные graph templates. Веса моделей и checkpoints в архив не включаются; они настраиваются или загружаются отдельно согласно [models.md](models.md).
 
 ## P1 проверка регрессий
 
@@ -82,6 +90,8 @@ KeyFlowStudio/
 4. Запустить выполнение графа.
 5. Проверить diagnostics, preview и write output.
 
-## Важно для GitHub
+## Модели и данные
 
-Секреты, access keys, модели, checkpoints, `.venv`, локальные настройки VS Code и результаты прогонов не должны попадать в репозиторий. Они игнорируются через `.gitignore`.
+KeyFlow Studio не распространяет сторонние веса моделей внутри репозитория или release bundle. Проверяйте условия upstream-проектов перед загрузкой, использованием или распространением весов и generated assets.
+
+Для вопросов безопасности используйте приватный канал связи с владельцем репозитория. Не публикуйте credentials, приватные медиафайлы или инфраструктурные детали в issues.

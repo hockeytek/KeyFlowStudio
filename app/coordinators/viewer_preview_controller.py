@@ -356,6 +356,12 @@ class ViewerPreviewController:
         path = str(source or "").strip()
         if not path or not os.path.exists(path):
             return
+        try:
+            path_obj = Path(path)
+            if path_obj.stem.endswith("_tmp") and path_obj.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}:
+                return
+        except Exception:
+            pass
 
         w._selected_node_preview_path = path
         if is_supported_image_file(path):

@@ -199,19 +199,19 @@ class Sam2NodeController(QObject):
         if not isinstance(all_frames, list) or len(all_frames) <= 1:
             self.error_occurred.emit(self._tr("sam2_need_video_sequence"), True)
             return
-        if not self.state.points:
+        global_frame_index = (
+            int(current_frame_index_global)
+            if current_frame_index_global is not None
+            else int(current_frame_index + frame_index_offset)
+        )
+        seed_mask = None if self.state.points else self.state.mask_for_frame(global_frame_index)
+        if not self.state.points and seed_mask is None:
             self.error_occurred.emit(self._tr("err_no_points"), True)
             return
 
         dir_norm = str(direction or "").strip().lower()
         if dir_norm not in {"forward", "backward"}:
             dir_norm = "forward"
-
-        global_frame_index = (
-            int(current_frame_index_global)
-            if current_frame_index_global is not None
-            else int(current_frame_index + frame_index_offset)
-        )
 
         self.generation_active = True
         self._request_show_errors = True
@@ -230,6 +230,7 @@ class Sam2NodeController(QObject):
                 "direction": dir_norm,
                 "points": list(self.state.points),
                 "labels": list(self.state.point_labels),
+                "seed_mask": None if seed_mask is None else np.asarray(seed_mask, dtype=np.uint8),
             }
         )
 
@@ -413,25 +414,28 @@ class Sam2NodeController(QObject):
                 Image.fromarray(combined).save(str(temp))
                 return str(temp)
 
-        if self.state.current_mask is not None:
-            temp = Path(tempfile.gettempdir()) / "matanyone2_qt_mask_current.png"
-            Image.fromarray(self.state.current_mask.astype(np.uint8)).save(str(temp))
-            return str(temp)
-
         return None
 
     # ── Graph sync helpers ──
 
     def graph_sync_dict(self, selected_mask_rows: list[int] | None = None) -> dict:
+        frames = [int(frame_idx) for frame_idx, _mask in self.state.added_masks]
+        sequence_count = len(set(frames)) if len(set(frames)) > 1 else 0
+        if sequence_count:
+            mask_items = [self._tr("sam2_sequence_mask_item").format(count=sequence_count)]
+            selected_mask_rows = []
+        else:
+            mask_items = self.state.mask_items()
         return {
             "status_text": self.state.status_text or None,
             "backend": "sam2",
             "model_type": self._model_type,
             "point_mode": self.state.point_mode,
             "live_sam2": self.state.live_sam2,
-            "mask_items": self.state.mask_items(),
+            "mask_items": mask_items,
             "selected_mask_rows": selected_mask_rows or [],
             "current_mask_ready": self.state.current_mask is not None,
+            "mask_sequence_count": sequence_count,
         }
 
     # ── Worker callbacks (private) ──

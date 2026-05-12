@@ -34,15 +34,22 @@ def _store(settings=None):
 
 def test_builtin_presets_are_loaded_from_packaged_templates():
     presets = _store().graph_builtin_presets()
+    matanyone2 = presets["builtin:matanyone2"]
 
     assert set(presets) == {"builtin:matanyone2", "builtin:corridorkey_gvm"}
-    assert [node["type"] for node in presets["builtin:matanyone2"]["nodes"]] == [
+    assert [node["type"] for node in matanyone2["nodes"]] == [
         "source",
         "sam2",
         "matting",
         "export",
         "export",
     ]
+    assert "start_frame" not in matanyone2
+    assert "end_frame" not in matanyone2
+    assert "num_frames" not in matanyone2
+    assert "start_frame" not in presets["builtin:corridorkey_gvm"]
+    assert "end_frame" not in presets["builtin:corridorkey_gvm"]
+    assert "num_frames" not in presets["builtin:corridorkey_gvm"]
     assert [node["type"] for node in presets["builtin:corridorkey_gvm"]["nodes"]] == [
         "source",
         "gvm",

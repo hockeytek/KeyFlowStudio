@@ -1,12 +1,12 @@
 # Model Setup
 
-KeyFlow Studio integrates several third-party model workflows. Model weights are not committed to this repository.
+KeyFlow Studio integrates several third-party model workflows. Model weights are not distributed in this repository or in the public preview app bundle.
 
 ## Attribution And Ownership
 
 KeyFlow Studio provides integration code, graph orchestration, UI controls, and worker/runtime glue. The model architectures, upstream packages, checkpoints, papers, names, and licenses belong to their respective authors and projects.
 
-Before redistributing this repository, binaries, screenshots, demos, or generated assets, review each upstream license and model card. Some projects may restrict commercial use, redistribution of weights, or use of generated assets.
+Before redistributing binaries, screenshots, demos, or generated assets, review each upstream license and model card. Some projects may restrict commercial use, redistribution of weights, or use of generated assets.
 
 Known upstream projects currently referenced by the integration:
 
@@ -23,9 +23,9 @@ This table is attribution documentation, not a license grant. Always follow the 
 
 At runtime, the application checks the configured model cache and downloads supported weights automatically when they are available from the configured upstream source. Some upstream models may still require manual license acceptance, private tokens, or external setup, so automatic download should be treated as a supported path rather than a universal guarantee for every model.
 
-## Storage Policy
+## Model Asset Policy
 
-Do not commit:
+Keep the following assets outside Git and outside release archives unless the upstream license explicitly allows redistribution and the project maintainers have approved it:
 
 - `*.pth`
 - `*.pt`
@@ -35,8 +35,6 @@ Do not commit:
 - `weights/`
 - `checkpoints/`
 - model cache folders
-
-These files are intentionally ignored in `.gitignore`.
 
 ## Runtime Model Directory
 
@@ -76,6 +74,6 @@ Some modern ML packages no longer fit older Intel macOS constraints cleanly. For
 
 These patches and pins are pragmatic compatibility work, not forks of the upstream projects. When running on modern Linux/CUDA machines, prefer the CUDA-compatible PyTorch build that matches the driver/runtime and validate the model-specific stack separately.
 
-## Public Repository Rule
+## Release Hygiene
 
-Before making the repository public, verify that model weights and generated media are absent from both the working tree and Git history.
+Public releases should contain the application code, documentation, UI assets, and small graph templates only. Model weights, generated outputs, and private media should remain external to the repository and release archives.

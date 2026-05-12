@@ -1,13 +1,13 @@
 # Contributing
 
-KeyFlow Studio is currently maintained as a private development repository. These guidelines prepare the project for a future public workflow.
+Thank you for taking an interest in KeyFlow Studio. This repository is public, but the project is still in preview: keep contributions focused, tested, and clear about model or platform assumptions.
 
 ## Development Flow
 
 1. Create a focused branch for each change.
 2. Keep changes scoped to one feature, fix, or documentation update.
 3. Run relevant tests before opening a pull request.
-4. Do not commit secrets, model weights, generated media, or local environment files.
+4. Keep credentials, model weights, generated media, and local environment files out of commits.
 
 ## Local Setup
 
@@ -39,4 +39,4 @@ Pull requests should include:
 
 ## Security And Private Assets
 
-Never include access keys, AWS credentials, private footage, model checkpoints, or downloaded weights in commits. If a secret is committed accidentally, rotate it immediately and remove it from Git history before sharing the repository.
+Never include access keys, AWS credentials, private footage, model checkpoints, or downloaded weights in commits. If a secret is committed accidentally, rotate it immediately and contact the maintainer so the exposure can be handled before more work lands on top of it.

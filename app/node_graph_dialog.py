@@ -3816,6 +3816,7 @@ class NodeGraphDialog(QDialog):
         mask_items: list[str] | None = None,
         selected_mask_rows: list[int] | None = None,
         current_mask_ready: bool | None = None,
+        mask_sequence_count: int | None = None,
         mask_source_path: str | None = None,
         mask_payloads: list[dict] | None = None,
     ) -> None:
@@ -3840,6 +3841,8 @@ class NodeGraphDialog(QDialog):
             props["selected_mask_rows"] = list(selected_mask_rows)
         if current_mask_ready is not None:
             props["current_mask_ready"] = current_mask_ready
+        if mask_sequence_count is not None:
+            props["mask_sequence_count"] = int(mask_sequence_count)
         if mask_source_path is not None:
             props["_mask_source_path"] = mask_source_path
         if mask_payloads is not None:
@@ -3903,6 +3906,8 @@ class NodeGraphDialog(QDialog):
     def selected_sam_mask_rows(self) -> list[int]:
         node = self._sam_node_target()
         if node is None:
+            return []
+        if int(node.properties.get("mask_sequence_count", 0) or 0) > 1:
             return []
         result: list[int] = []
         for value in node.properties.get("selected_mask_rows", []):
@@ -4246,8 +4251,11 @@ class NodeGraphDialog(QDialog):
             lines.append((self._tr("sam_annotation_manual"), default_color))
         masks = props.get("mask_items", [])
         n = len(masks) if isinstance(masks, list) else 0
+        sequence_count = int(props.get("mask_sequence_count", 0) or 0)
         has_preview = bool(props.get("current_mask_ready", False))
-        if n:
+        if sequence_count > 1:
+            lines.append((self._tr("sam_annotation_sequence_masks").format(count=sequence_count), default_color))
+        elif n:
             mask_color = default_color
             lines.append((self._tr("sam_annotation_masks").format(count=n), mask_color))
         elif has_preview:

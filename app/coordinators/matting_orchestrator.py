@@ -171,11 +171,28 @@ class MattingOrchestrator:
     def saved_output_path_for_node(self, node_id: str) -> str:
         return self._write_node_saved_paths.get(str(node_id or "").strip(), "")
 
+    @staticmethod
+    def _is_incomplete_write_video_path(path: str | Path | None) -> bool:
+        try:
+            candidate = Path(path or "")
+        except Exception:
+            return False
+        return candidate.stem.endswith("_tmp") and candidate.suffix.lower() in {
+            ".mp4",
+            ".mov",
+            ".avi",
+            ".mkv",
+            ".webm",
+            ".m4v",
+        }
+
     def apply_export_preview_path(self, write_node_id: str, path: str) -> None:
         w = self._host
         node_id = str(write_node_id or "").strip()
         out_path = str(path or "").strip()
         if not node_id or not out_path or not os.path.exists(out_path):
+            return
+        if self._is_incomplete_write_video_path(out_path):
             return
 
         self._write_node_saved_paths[node_id] = out_path
@@ -326,6 +343,7 @@ class MattingOrchestrator:
         ]
 
         needs_external_mask = False
+        sam2_feeds_matting_mask = False
         for matting_id in matting_ids:
             mask_inputs = [
                 e
@@ -337,6 +355,7 @@ class MattingOrchestrator:
                 break
             # SAM source on mask port still relies on selected/uploaded mask path.
             if any(node_type_by_id.get(e.get("src_id")) in {"sam2"} for e in mask_inputs):
+                sam2_feeds_matting_mask = True
                 needs_external_mask = True
                 break
 
@@ -366,7 +385,11 @@ class MattingOrchestrator:
             return True
 
         graph_selected = w.sam2_graph.selected_graph_mask_rows()
-        correction_masks = w.sam2.state.get_correction_masks_by_frame(graph_selected or None)
+        correction_masks = (
+            {}
+            if sam2_feeds_matting_mask
+            else w.sam2.state.get_correction_masks_by_frame(graph_selected or None)
+        )
 
         config = build_runtime_config(
             is_video=w.is_video_input,
@@ -466,7 +489,9 @@ class MattingOrchestrator:
         for target_cfg in targets:
             write_cfg = dict(target_cfg)
             stream = str(write_cfg.get("stream", "")).strip().lower() or "sam_mask"
-            if write_cfg.get("auto_output_dir") or not str(write_cfg.get("output_dir", "")).strip():
+            if not str(write_cfg.get("resolved_output_dir", "")).strip() and (
+                write_cfg.get("auto_output_dir") or not str(write_cfg.get("output_dir", "")).strip()
+            ):
                 write_cfg["output_dir"] = str(fallback_output_dir / stream)
 
             try:
@@ -840,7 +865,7 @@ class MattingOrchestrator:
         source_hint = str(w.input_path or target_cfg.get("source_path", "")).strip()
         remembered_path = str(target_cfg.get("last_output_path", "")).strip()
 
-        if remembered_path and os.path.exists(remembered_path):
+        if remembered_path and os.path.exists(remembered_path) and not self._is_incomplete_write_video_path(remembered_path):
             return remembered_path
 
         base_default_dir = self._default_run_output_dir(source_hint)
@@ -893,6 +918,7 @@ class MattingOrchestrator:
 
         if output_fmt in video_exts:
             candidates = sorted(out_dir.glob(f"*.{output_fmt}"))
+            candidates = [p for p in candidates if not self._is_incomplete_write_video_path(p)]
             if candidates:
                 return str(candidates[0])
         else:

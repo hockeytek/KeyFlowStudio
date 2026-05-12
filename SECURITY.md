@@ -2,7 +2,7 @@
 
 ## Reporting
 
-For now, report security issues directly to the repository owner through a private channel. Do not open public issues for credentials, vulnerabilities, or private infrastructure details.
+Report security issues directly to the repository owner through a private channel. Do not open public issues for credentials, vulnerabilities, private infrastructure details, or media that should not be shared publicly.
 
 ## Secrets
 
@@ -18,7 +18,7 @@ If a secret is exposed:
 
 1. Revoke or rotate the secret immediately.
 2. Remove it from the working tree.
-3. Purge it from Git history before making the repository public.
+3. Notify the maintainer so Git history and release assets can be reviewed.
 4. Audit recent access logs where applicable.
 
 ## Model Assets

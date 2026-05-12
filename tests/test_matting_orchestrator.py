@@ -114,6 +114,26 @@ class MattingOrchestratorTests(unittest.TestCase):
         finally:
             os.unlink(tmp_path)
 
+    def test_apply_export_preview_path_ignores_incomplete_tmp_video(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir) / "result_tmp.mov"
+            tmp_path.write_bytes(b"not finalized")
+
+            selected_calls = []
+            dialog = _DialogStub()
+            host = SimpleNamespace(
+                _node_graph_dialog=dialog,
+                _set_selected_node_preview=lambda **kwargs: selected_calls.append(kwargs),
+            )
+            orchestrator = MattingOrchestrator(host)
+            orchestrator.set_export_preview_node("write_1")
+
+            orchestrator.apply_export_preview_path("write_1", str(tmp_path))
+
+            self.assertEqual(orchestrator.saved_output_path_for_node("write_1"), "")
+            self.assertEqual(dialog.persisted_paths, [])
+            self.assertEqual(selected_calls, [])
+
     def test_on_graph_stream_preview_routes_selected_nodes(self):
         selected_calls = []
         runtime_preview_calls = []
@@ -221,6 +241,39 @@ class MattingOrchestratorTests(unittest.TestCase):
         self.assertTrue(saves[0][3])
         self.assertEqual(saves[0][4], ".mp4")
 
+    def test_save_sam_outputs_prefers_resolved_write_output_dir(self):
+        saves = []
+        dialog = _DialogStub(
+            targets=[
+                {
+                    "source_node_type": "sam2",
+                    "stream": "alpha",
+                    "graph_node_id": "write_1",
+                    "auto_output_dir": True,
+                    "output_dir": "",
+                    "resolved_output_dir": "/tmp/input_keyflow/SAM2 Mask/Output",
+                    "output_format": "png",
+                    "file_name": "",
+                }
+            ]
+        )
+        host = SimpleNamespace(
+            _node_graph_dialog=dialog,
+            input_path="/tmp/input.mp4",
+            _default_run_output_dir=lambda _src: Path("/tmp/input_keyflow"),
+            sam2_graph=SimpleNamespace(build_frame_masks=lambda: {0: np.ones((2, 2), dtype=np.uint8) * 255}),
+            _save_frames_to_write_output=lambda frames, cfg, fallback, default_stem, *, source_is_video, source_ext: (
+                saves.append((cfg.get("output_dir"), cfg.get("resolved_output_dir"), str(fallback)))
+                or "/tmp/input_keyflow/SAM2 Mask/Output/sam_mask_f0001.png"
+            ),
+            _to_qimage=lambda _arr: None,
+            _set_selected_node_preview=lambda **_kwargs: None,
+        )
+
+        MattingOrchestrator(host).save_sam_outputs_to_connected_write_nodes()
+
+        self.assertEqual(saves, [("", "/tmp/input_keyflow/SAM2 Mask/Output", "/tmp/input_keyflow/sam_mask")])
+
     def test_execute_passthrough_targets_uses_write_output_adapter(self):
         adapter = _WriteOutputAdapterStub()
         host = SimpleNamespace(_node_graph_dialog=None)
@@ -292,6 +345,33 @@ class MattingOrchestratorTests(unittest.TestCase):
 
             self.assertEqual(restored, str(expected))
 
+    def test_find_existing_write_output_path_skips_tmp_video(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = Path(tmpdir) / "input.mp4"
+            source_path.write_bytes(b"0")
+            out_dir = Path(tmpdir) / "out"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            tmp_video = out_dir / "input_tmp.mov"
+            tmp_video.write_bytes(b"not finalized")
+
+            host = SimpleNamespace(input_path=str(source_path))
+            orchestrator = MattingOrchestrator(host)
+
+            restored = orchestrator.resolve_write_output_path(
+                {
+                    "graph_node_id": "write_1",
+                    "stream": "alpha",
+                    "source_path": str(source_path),
+                    "auto_output_dir": False,
+                    "output_dir": str(out_dir),
+                    "output_format": "mov",
+                    "file_name": "input",
+                    "last_output_path": "",
+                }
+            )
+
+            self.assertEqual(restored, "")
+
     def test_cleanup_pending_temp_sam_mask_deletes_only_tracked_temp_file(self):
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             tmp_path = tmp.name
@@ -342,6 +422,46 @@ class MattingOrchestratorTests(unittest.TestCase):
         self.assertTrue(started)
         self.assertEqual(len(start_calls), 1)
         self.assertEqual(start_calls[0][0], "")
+
+    def test_try_graph_run_sam2_to_matting_mask_does_not_pass_correction_sequence(self):
+        preset = {
+            "nodes": [
+                {"id": "sam_1", "type": "sam2", "title": "SAM2", "properties": {"enabled": True}},
+                {"id": "matting_1", "type": "matting", "title": "MatAnyone2", "properties": {"enabled": True}},
+            ],
+            "connections": [
+                {"src": "sam_1", "dst": "matting_1", "src_port": "out", "dst_port": "mask"},
+            ],
+        }
+        correction_calls = []
+        dialog = SimpleNamespace(export_graph_preset=lambda: preset)
+        host = SimpleNamespace(
+            _node_graph_dialog=dialog,
+            _resolve_mask_path_for_processing=lambda: "/tmp/sam_seed.png",
+            _tr=lambda key: key,
+            sam2_graph=SimpleNamespace(selected_graph_mask_rows=lambda: []),
+            sam2=SimpleNamespace(
+                state=SimpleNamespace(
+                    get_correction_masks_by_frame=lambda rows: correction_calls.append(rows)
+                    or {1: np.ones((2, 2), dtype=np.uint8) * 255}
+                )
+            ),
+            is_video_input=True,
+            _compatibility_profile="quality",
+        )
+
+        orchestrator = MattingOrchestrator(host)
+        start_calls = []
+        orchestrator.start_matting_run = lambda mask_path, output_dir, config: start_calls.append(
+            (mask_path, output_dir, config)
+        )
+
+        started = orchestrator.try_graph_inference_run(Path("/tmp/out"), 0, 100)
+
+        self.assertTrue(started)
+        self.assertEqual(start_calls[0][0], "/tmp/sam_seed.png")
+        self.assertIsNone(start_calls[0][2].get("correction_masks"))
+        self.assertEqual(correction_calls, [])
 
     def test_try_graph_run_sam3_to_write_starts_graph_inference(self):
         preset = {

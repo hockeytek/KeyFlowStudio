@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication, QPlainTextEdit
 
 from app.sam_runtime_state import SamRuntimeState
 from app.coordinators.sam_graph_coordinator import Sam2GraphCoordinator
+from app.node_graph.nodes.sam_controller import Sam2NodeController
 from app.services.sam2_service import Sam2Service
 from app.node_graph.sam3_properties_panel import Sam3PropertiesPanel
 from app.workers.sam_mask_worker import SamMaskWorker
@@ -514,6 +515,182 @@ class SamRuntimeStateFrameMaskTests(unittest.TestCase):
 
 
 class Sam2GraphCoordinatorRestoreTests(unittest.TestCase):
+    def test_build_frame_masks_ignores_current_preview_mask_without_added_mask(self):
+        state = SimpleNamespace(
+            added_masks=[],
+            current_mask=np.ones((2, 2), dtype=np.uint8) * 255,
+        )
+        sam2 = SimpleNamespace(state=state)
+        coordinator = Sam2GraphCoordinator(
+            sam2,
+            get_dialog=lambda: None,
+            get_input_path=lambda: "",
+            get_frame_index=lambda: 7,
+        )
+
+        frame_masks = coordinator.build_frame_masks()
+
+        self.assertEqual(frame_masks, {})
+
+    def test_persist_masks_uses_keyflow_output_folder(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "7пятниц-3.mov"
+            input_path.write_bytes(b"video")
+            temp_mask = Path(tmpdir) / "temp_mask.png"
+            mask = np.ones((2, 2), dtype=np.uint8) * 255
+            from PIL import Image
+
+            Image.fromarray(mask).save(str(temp_mask))
+            legacy_file = Path(tmpdir) / "7пятниц-3__sam_graph_mask.png"
+            legacy_dir = Path(tmpdir) / "7пятниц-3__sam_graph_masks"
+            legacy_file.write_bytes(b"old")
+            legacy_dir.mkdir()
+            (legacy_dir / "sam_mask_00000.png").write_bytes(b"old")
+
+            sam2 = SimpleNamespace(
+                state=SimpleNamespace(added_masks=[(0, mask)], current_mask=None),
+                resolve_mask_path_for_processing=lambda _selected=None: str(temp_mask),
+            )
+            dialog = SimpleNamespace(
+                connected_write_targets=lambda: [{"source_node_type": "sam2"}],
+            )
+            coordinator = Sam2GraphCoordinator(
+                sam2,
+                get_dialog=lambda: dialog,
+                get_input_path=lambda: str(input_path),
+                get_frame_index=lambda: 0,
+            )
+
+            mask_source_path, mask_payloads = coordinator.persist_masks(force_disk=True)
+
+            expected_dir = Path(tmpdir) / "7пятниц-3_keyflow" / "sam_graph_masks"
+            self.assertEqual(Path(mask_source_path), expected_dir / "sam_graph_mask.png")
+            self.assertEqual(Path(mask_payloads[0]["path"]), expected_dir / "sam_mask_00000.png")
+            self.assertTrue((expected_dir / "sam_graph_mask.png").exists())
+            self.assertTrue((expected_dir / "sam_mask_00000.png").exists())
+            self.assertFalse(legacy_file.exists())
+            self.assertFalse(legacy_dir.exists())
+
+    def test_persist_masks_does_not_write_without_connected_write_node(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "7пятниц-3.mov"
+            input_path.write_bytes(b"video")
+            temp_mask = Path(tmpdir) / "temp_mask.png"
+            mask = np.ones((2, 2), dtype=np.uint8) * 255
+            from PIL import Image
+
+            Image.fromarray(mask).save(str(temp_mask))
+            legacy_file = Path(tmpdir) / "7пятниц-3__sam_graph_mask.png"
+            legacy_dir = Path(tmpdir) / "7пятниц-3__sam_graph_masks"
+            legacy_file.write_bytes(b"old")
+            legacy_dir.mkdir()
+
+            sam2 = SimpleNamespace(
+                state=SimpleNamespace(added_masks=[(0, mask)], current_mask=None),
+                resolve_mask_path_for_processing=lambda _selected=None: str(temp_mask),
+            )
+            dialog = SimpleNamespace(connected_write_targets=lambda: [])
+            coordinator = Sam2GraphCoordinator(
+                sam2,
+                get_dialog=lambda: dialog,
+                get_input_path=lambda: str(input_path),
+                get_frame_index=lambda: 0,
+            )
+
+            mask_source_path, mask_payloads = coordinator.persist_masks(force_disk=True)
+
+            keyflow_dir = Path(tmpdir) / "7пятниц-3_keyflow"
+            self.assertEqual(mask_source_path, "")
+            self.assertEqual(mask_payloads, [])
+            self.assertFalse(keyflow_dir.exists())
+            self.assertFalse(legacy_file.exists())
+            self.assertFalse(legacy_dir.exists())
+
+    def test_sync_to_graph_does_not_persist_masks_without_write_node(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_path = Path(tmpdir) / "clip.mov"
+            input_path.write_bytes(b"video")
+            mask = np.ones((2, 2), dtype=np.uint8) * 255
+            sync_calls = []
+
+            def _graph_sync_dict(selected_rows):
+                return {
+                    "status_text": "ready",
+                    "backend": "sam2",
+                    "model_type": "vit_h",
+                    "point_mode": "positive",
+                    "live_sam2": False,
+                    "mask_items": [],
+                    "selected_mask_rows": selected_rows or [],
+                    "current_mask_ready": False,
+                }
+
+            sam2 = SimpleNamespace(
+                state=SimpleNamespace(added_masks=[(0, mask)], current_mask=None),
+                graph_sync_dict=_graph_sync_dict,
+                resolve_mask_path_for_processing=lambda _selected=None: "",
+            )
+            dialog = SimpleNamespace(
+                connected_write_targets=lambda: [],
+                selected_sam_mask_rows=lambda: [],
+                sync_sam_runtime_state=lambda **kwargs: sync_calls.append(kwargs),
+            )
+            coordinator = Sam2GraphCoordinator(
+                sam2,
+                get_dialog=lambda: dialog,
+                get_input_path=lambda: str(input_path),
+                get_frame_index=lambda: 0,
+            )
+
+            coordinator.sync_to_graph()
+
+            self.assertEqual(sync_calls[-1]["mask_source_path"], "")
+            self.assertEqual(sync_calls[-1]["mask_payloads"], [])
+            self.assertFalse((Path(tmpdir) / "clip_keyflow").exists())
+
+    def test_sync_collapses_tracking_sequence_selection(self):
+        selected_calls = []
+
+        def _graph_sync_dict(selected_rows):
+            selected_calls.append(list(selected_rows or []))
+            return {
+                "status_text": "ready",
+                "backend": "sam2",
+                "model_type": "vit_h",
+                "point_mode": "positive",
+                "live_sam2": False,
+                "mask_items": [],
+                "selected_mask_rows": selected_rows or [],
+                "current_mask_ready": False,
+            }
+
+        sam2 = SimpleNamespace(
+            state=SimpleNamespace(
+                added_masks=[
+                    (0, np.ones((2, 2), dtype=np.uint8) * 255),
+                    (1, np.ones((2, 2), dtype=np.uint8) * 255),
+                ],
+                current_mask=None,
+            ),
+            graph_sync_dict=_graph_sync_dict,
+            resolve_mask_path_for_processing=lambda selected=None: None,
+        )
+
+        dialog = SimpleNamespace(
+            selected_sam_mask_rows=lambda: [0],
+            sync_sam_runtime_state=lambda **_kwargs: None,
+        )
+        coordinator = Sam2GraphCoordinator(
+            sam2,
+            get_dialog=lambda: dialog,
+            get_input_path=lambda: "",
+            get_frame_index=lambda: 0,
+        )
+
+        coordinator.sync_to_graph()
+
+        self.assertEqual(selected_calls, [[]])
+
     def test_restore_does_not_clear_runtime_masks_when_graph_has_no_persisted_masks(self):
         class _Signal:
             def __init__(self):
@@ -546,6 +723,89 @@ class Sam2GraphCoordinatorRestoreTests(unittest.TestCase):
         self.assertEqual(len(sam2.state.added_masks), 1)
         self.assertIsNotNone(sam2.state.current_mask)
         self.assertEqual(mask_list_changed.calls, 0)
+
+    def test_sam_controller_graph_sync_displays_sequence_as_single_track(self):
+        controller = Sam2NodeController.__new__(Sam2NodeController)
+        controller._tr = lambda key: {
+            "sam2_sequence_mask_item": "SAM2 track: {count} frames",
+        }.get(key, key)
+        controller._model_type = "vit_h"
+        controller.state = SimpleNamespace(
+            status_text="",
+            point_mode="positive",
+            live_sam2=False,
+            current_mask=None,
+            added_masks=[
+                (0, np.ones((2, 2), dtype=np.uint8) * 255),
+                (1, np.ones((2, 2), dtype=np.uint8) * 255),
+                (2, np.ones((2, 2), dtype=np.uint8) * 255),
+            ],
+            mask_items=lambda: ["F0: mask_001", "F1: mask_002", "F2: mask_003"],
+        )
+
+        sync = Sam2NodeController.graph_sync_dict(controller, [0])
+
+        self.assertEqual(sync["mask_items"], ["SAM2 track: 3 frames"])
+        self.assertEqual(sync["selected_mask_rows"], [])
+        self.assertEqual(sync["mask_sequence_count"], 3)
+
+    def test_sam_controller_processing_mask_requires_added_or_loaded_mask(self):
+        controller = Sam2NodeController.__new__(Sam2NodeController)
+        controller.state = SimpleNamespace(
+            mask_path=None,
+            added_masks=[],
+            current_mask=np.ones((2, 2), dtype=np.uint8) * 255,
+        )
+
+        path = Sam2NodeController.resolve_mask_path_for_processing(controller)
+
+        self.assertIsNone(path)
+
+    def test_sam_controller_propagate_uses_added_mask_when_points_were_cleared(self):
+        class _Signal:
+            def __init__(self):
+                self.calls = []
+
+            def emit(self, *args):
+                self.calls.append(args)
+
+        class _Dispatch:
+            def __init__(self):
+                self.payloads = []
+
+            def emit(self, payload):
+                self.payloads.append(payload)
+
+        controller = Sam2NodeController.__new__(Sam2NodeController)
+        controller._tr = lambda key: key
+        controller._backend = "sam2"
+        controller._ensure_weights_available = lambda show_dialog=True: True
+        controller.generation_active = False
+        controller.state = SamRuntimeState()
+        seed = np.ones((2, 2), dtype=np.uint8) * 255
+        controller.state.added_masks = [(0, seed)]
+        controller.state.points = []
+        controller.state.point_labels = []
+        controller.status_changed = _Signal()
+        controller.error_occurred = _Signal()
+        controller.generation_started = _Signal()
+        controller.controls_busy_changed = _Signal()
+        controller._do_propagate = _Dispatch()
+
+        controller.propagate_video(
+            direction="forward",
+            all_frames=[np.zeros((2, 2, 3), dtype=np.uint8) for _ in range(3)],
+            current_frame_index=0,
+            current_frame_index_global=0,
+            processing_active=False,
+        )
+
+        self.assertEqual(controller.error_occurred.calls, [])
+        self.assertTrue(controller.generation_active)
+        self.assertEqual(len(controller._do_propagate.payloads), 1)
+        payload = controller._do_propagate.payloads[0]
+        self.assertEqual(payload["points"], [])
+        self.assertTrue(np.array_equal(payload["seed_mask"], seed))
 
 
 class MainWindowSamGraphBehaviorTests(unittest.TestCase):
@@ -698,7 +958,7 @@ class MainWindowSamGraphBehaviorTests(unittest.TestCase):
         window._node_graph_dialog = _DialogStub()
         self.assertTrue(window._has_sam2_to_matting_mask_link_in_graph())
 
-    def test_auto_propagate_skipped_when_sam_feeds_matting_mask(self):
+    def test_auto_propagate_skips_when_sam_feeds_matting_mask(self):
         main_module = importlib.import_module("main")
         window = main_module.MainWindow.__new__(main_module.MainWindow)
 
@@ -708,18 +968,11 @@ class MainWindowSamGraphBehaviorTests(unittest.TestCase):
         window.all_frames = [np.zeros((2, 2, 3), dtype=np.uint8) for _ in range(12)]
         window.matting = SimpleNamespace(is_active=False)
 
-        status_messages = []
-
-        class _SignalStub:
-            def emit(self, text):
-                status_messages.append(text)
-
         window._tr = lambda key: {
             "sam2_auto_propagate_skipped_matting_mask": "Auto SAM2 skipped",
         }.get(key, key)
         window.sam2 = SimpleNamespace(
             generation_active=False,
-            status_changed=_SignalStub(),
             state=SimpleNamespace(
                 current_mask=np.ones((2, 2), dtype=np.uint8) * 255,
                 added_masks=[(0, np.ones((2, 2), dtype=np.uint8) * 255)],
@@ -743,13 +996,17 @@ class MainWindowSamGraphBehaviorTests(unittest.TestCase):
         window._node_graph_dialog = _DialogStub()
 
         triggered = []
-        window._on_graph_sam2_propagate_requested = lambda direction: triggered.append(direction)
+        def _propagate(direction):
+            triggered.append(direction)
+            window.sam2.generation_active = True
+
+        window._on_graph_sam2_propagate_requested = _propagate
 
         started = window._try_auto_propagate_sam2_before_processing()
 
         self.assertFalse(started)
         self.assertEqual(triggered, [])
-        self.assertEqual(status_messages, ["Auto SAM2 skipped"])
+        self.assertFalse(window._pending_processing_after_sam2_auto_propagate)
 
     def test_graph_preview_request_for_sam_uses_current_frame_mask(self):
         main_module = importlib.import_module("main")

@@ -391,32 +391,43 @@ class Sam2Service:
         self._session_masks_map[frame_index] = mask_u8
         return {"frame_index": frame_index, "mask": mask_u8}
 
-    def propagate_with_prompt(
-        self,
-        frames_rgb,
-        points,
-        labels,
-        *,
-        start_index: int,
-        direction: str,
-        reset_session: bool = False,
-    ) -> dict:
-        direction_norm = str(direction or "forward").strip().lower()
-        reverse = direction_norm == "backward"
-        self._raise_if_cancelled()
-        self._ensure_video_session(frames_rgb, start_index=start_index, force_reset=reset_session)
-        self._emit_progress(35, self._tr("sam2_status_session_ready"))
+    def add_mask_prompt(self, frames_rgb, *, frame_index: int, mask, obj_id: int = 1) -> dict:
+        self._ensure_video_session(frames_rgb, start_index=frame_index, force_reset=False)
+        frame_index = int(frame_index)
+        self._session_prompt_frame_index = frame_index
+        self._session_points = []
+        self._session_labels = []
+        self._session_obj_id = int(obj_id)
 
-        reprompt = self.add_reprompt(
-            self._session_frames,
-            frame_index=int(start_index),
-            points=points,
-            labels=labels,
-            obj_id=self._session_obj_id,
-        )
-        _ = reprompt
-        self._raise_if_cancelled()
+        mask_arr = np.asarray(mask, dtype=np.uint8)
+        if mask_arr.ndim != 2:
+            raise ValueError("seed mask must be a 2D array")
+        target_shape = self._session_frames[frame_index].shape[:2]
+        if mask_arr.shape != target_shape:
+            mask_arr = np.asarray(
+                Image.fromarray(mask_arr).resize((target_shape[1], target_shape[0]), Image.Resampling.NEAREST),
+                dtype=np.uint8,
+            )
+        mask_arr = (mask_arr > 127).astype(np.uint8) * 255
 
+        if self._native_video_enabled and self._video_predictor is not None and self._video_state is not None:
+            if not hasattr(self._video_predictor, "add_new_mask"):
+                raise RuntimeError("SAM2 video predictor missing add_new_mask")
+            _frame_idx, out_obj_ids, out_mask_logits = self._video_predictor.add_new_mask(
+                inference_state=self._video_state,
+                frame_idx=frame_index,
+                obj_id=self._session_obj_id,
+                mask=mask_arr,
+            )
+            resolved = self._mask_from_logits(out_mask_logits, out_obj_ids, self._session_obj_id)
+            if resolved is None:
+                resolved = mask_arr
+            self._session_masks_map[frame_index] = resolved
+            return {"frame_index": frame_index, "mask": resolved}
+
+        raise RuntimeError("SAM2 native video predictor is required to track from an existing mask")
+
+    def _propagate_active_session(self, *, start_index: int, direction_norm: str, reverse: bool, reset_session: bool) -> dict:
         direction_key = "sam2_direction_backward" if reverse else "sam2_direction_forward"
         direction_label = self._tr(direction_key)
         total_session_frames = len(self._session_frames)
@@ -470,6 +481,8 @@ class Sam2Service:
         else:
             prompt_points = list(self._session_points)
             prompt_labels = list(self._session_labels)
+            if not prompt_points or not prompt_labels:
+                raise RuntimeError("SAM2 native video predictor is required to track from an existing mask")
             if reverse:
                 indices = range(int(start_index), -1, -1)
             else:
@@ -508,6 +521,66 @@ class Sam2Service:
             "current_frame_index": int(start_index),
             "total_frames": total_session_frames,
         }
+
+    def propagate_with_seed_mask(
+        self,
+        frames_rgb,
+        seed_mask,
+        *,
+        start_index: int,
+        direction: str,
+        reset_session: bool = False,
+    ) -> dict:
+        direction_norm = str(direction or "forward").strip().lower()
+        reverse = direction_norm == "backward"
+        self._raise_if_cancelled()
+        self._ensure_video_session(frames_rgb, start_index=start_index, force_reset=reset_session)
+        self._emit_progress(35, self._tr("sam2_status_session_ready"))
+        self.add_mask_prompt(
+            self._session_frames,
+            frame_index=int(start_index),
+            mask=seed_mask,
+            obj_id=self._session_obj_id,
+        )
+        self._raise_if_cancelled()
+        return self._propagate_active_session(
+            start_index=int(start_index),
+            direction_norm=direction_norm,
+            reverse=reverse,
+            reset_session=reset_session,
+        )
+
+    def propagate_with_prompt(
+        self,
+        frames_rgb,
+        points,
+        labels,
+        *,
+        start_index: int,
+        direction: str,
+        reset_session: bool = False,
+    ) -> dict:
+        direction_norm = str(direction or "forward").strip().lower()
+        reverse = direction_norm == "backward"
+        self._raise_if_cancelled()
+        self._ensure_video_session(frames_rgb, start_index=start_index, force_reset=reset_session)
+        self._emit_progress(35, self._tr("sam2_status_session_ready"))
+
+        reprompt = self.add_reprompt(
+            self._session_frames,
+            frame_index=int(start_index),
+            points=points,
+            labels=labels,
+            obj_id=self._session_obj_id,
+        )
+        _ = reprompt
+        self._raise_if_cancelled()
+        return self._propagate_active_session(
+            start_index=int(start_index),
+            direction_norm=direction_norm,
+            reverse=reverse,
+            reset_session=reset_session,
+        )
 
     @staticmethod
     def _best_from_candidates(masks, scores):

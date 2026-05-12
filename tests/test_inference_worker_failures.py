@@ -256,6 +256,34 @@ class InferenceWorkerFailurePathTests(unittest.TestCase):
         self.assertEqual(len(stream_calls), 3)
         self.assertEqual(len(progress_calls), 3)
 
+    def test_sam2_single_payload_mask_stays_single_seed(self):
+        worker = InferenceWorker.__new__(InferenceWorker)
+        worker.cancel_flag = SimpleNamespace(is_set=lambda: False)
+        worker._graph_start_frame = 0
+        worker._graph_mask_path = ""
+        stream_calls = []
+        progress_calls = []
+        worker._stream_graph_write_frame = lambda *args, **kwargs: stream_calls.append((args, kwargs))
+        worker.node_frame_progress = SimpleNamespace(emit=lambda *args: progress_calls.append(args))
+
+        mask = np.ones((2, 2), dtype=np.uint8) * 255
+        worker._load_sam_masks_from_payloads = lambda _props, _shape: {0: mask}
+
+        frames = [
+            np.zeros((2, 2, 3), dtype=np.uint8),
+            np.zeros((2, 2, 3), dtype=np.uint8),
+            np.zeros((2, 2, 3), dtype=np.uint8),
+        ]
+        node_data = {"id": "sam_1", "properties": {}}
+
+        result = worker._execute_node("sam2", node_data, {"img": frames})
+
+        self.assertIn("out", result)
+        self.assertTrue(np.array_equal(result["out"], mask))
+        self.assertTrue(np.array_equal(result["mask"], mask))
+        self.assertEqual(stream_calls, [])
+        self.assertEqual(progress_calls, [])
+
     def test_comp_stream_preview_is_marked_preview_only(self):
         worker = InferenceWorker.__new__(InferenceWorker)
         worker._graph_start_frame = 0

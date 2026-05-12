@@ -940,6 +940,21 @@ STRINGS: dict[str, dict[str, str]] = {
     "sam_weights_downloaded_ui": {"ru": "Веса модели {name} успешно загружены.", "en": "Model weights for {name} downloaded successfully."},
     "sam_weights_download_failed": {"ru": "Ошибка загрузки весов: {error}", "en": "Weights download failed: {error}"},
     "worker_inference_load_model": {"ru": "Загружаю модель MatAnyone2...", "en": "Loading MatAnyone2 model..."},
+    "worker_matanyone2_download_weights": {
+        "ru": "Скачиваю веса MatAnyone2... {percent}%",
+        "en": "Downloading MatAnyone2 weights... {percent}%",
+    },
+    "worker_matanyone2_weights_ready": {"ru": "Веса MatAnyone2 найдены", "en": "MatAnyone2 weights found"},
+    "worker_matanyone2_weights_ready_path": {
+        "ru": "MatAnyone2 weights: {path}",
+        "en": "MatAnyone2 weights: {path}",
+    },
+    "worker_matanyone2_model_ready": {"ru": "Модель MatAnyone2 загружена", "en": "MatAnyone2 model loaded"},
+    "worker_matanyone2_warmup": {"ru": "MatAnyone2: прогрев трекера...", "en": "MatAnyone2: warming up tracker..."},
+    "worker_matanyone2_processing_frame": {
+        "ru": "MatAnyone2: кадр {current}/{total}",
+        "en": "MatAnyone2: frame {current}/{total}",
+    },
     "worker_media_loading_video": {
         "ru": "Загружаю видео: кадр {current}/{total}",
         "en": "Loading video: frame {current}/{total}",
@@ -1071,6 +1086,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "sam_annotation_manual": {"ru": "Manual", "en": "Manual"},
     "sam_annotation_concept": {"ru": "prompt: {concept}", "en": "prompt: {concept}"},
     "sam_annotation_masks": {"ru": "масок: {count}", "en": "masks: {count}"},
+    "sam_annotation_sequence_masks": {"ru": "трек: {count} кадров", "en": "track: {count} frames"},
+    "sam2_sequence_mask_item": {"ru": "SAM2 трек: {count} кадров", "en": "SAM2 track: {count} frames"},
     "sam_annotation_mask_ready": {"ru": "маска готова", "en": "mask ready"},
     "sam_annotation_no_masks": {"ru": "нет масок", "en": "no masks"},
     "sam2_need_video_sequence": {

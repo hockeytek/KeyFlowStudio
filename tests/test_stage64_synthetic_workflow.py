@@ -101,6 +101,35 @@ class MinimalGraphExecutionTests(unittest.TestCase):
         self.assertIn("in", exp_out)
         self.assertIs(exp_out["in"], frames)
 
+    def test_worker_without_write_node_does_not_create_output_root(self):
+        class _Signal:
+            def __init__(self):
+                self.calls = []
+
+            def emit(self, *args):
+                self.calls.append(args)
+
+        worker = _make_worker()
+        worker.stage_progress = _Signal()
+        worker.finished = _Signal()
+        worker.error = _Signal()
+        worker._load_image_frame = lambda _path: np.zeros((4, 4, 3), dtype=np.uint8)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = Path(tmpdir) / "clip.png"
+            source_path.write_bytes(b"placeholder")
+            output_dir = Path(tmpdir) / "clip_keyflow"
+
+            worker._process_with_node_graph(
+                {"nodes": [{"id": "src_1", "type": "source", "properties": {"path": str(source_path)}}], "edges": []},
+                str(source_path),
+                "",
+                output_dir,
+                {"is_video": False},
+            )
+
+            self.assertFalse(output_dir.exists())
+
     def test_alpha_sequence_with_image_media_type_uses_all_frames(self):
         worker = _make_worker()
         worker._graph_output_dir = Path(tempfile.gettempdir())
@@ -585,6 +614,14 @@ class BuildKeyflowOutputDirTests(unittest.TestCase):
         r1 = _build_keyflow_output_dir(source, "alpha")
         r2 = _build_keyflow_output_dir(source, "fg")
         self.assertNotEqual(r1, r2)
+
+    def test_internal_artifacts_stay_under_keyflow_root(self):
+        from app.utils.write_paths import build_keyflow_internal_dir
+
+        source = Path("/video/7пятниц-3.mov")
+        result = build_keyflow_internal_dir(source, "sam_graph_masks")
+
+        self.assertEqual(result, Path("/video/7пятниц-3_keyflow/sam_graph_masks"))
 
 
 class GatherNodeInputsEdgeCasesTests(unittest.TestCase):

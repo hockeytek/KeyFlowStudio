@@ -142,6 +142,7 @@ class InferenceWorker(QObject):
         self._graph_write_plans: dict[tuple[str, str], list[dict]] = {}
         self._graph_stream_saved_paths: dict[str, Path] = {}
         self._graph_downstream_targets: dict[tuple[str, str], list[dict]] = {}
+        self._graph_temp_dirs: list[Path] = []
         self._graph_correction_masks: dict[int, np.ndarray] | None = None
         self._sam_service = None
 
@@ -158,15 +159,30 @@ class InferenceWorker(QObject):
 
     @staticmethod
     def _cleanup_stale_temp_dirs() -> None:
-        """Remove leftover keyflow_alphahint_* and keyflow_gvm_in_* dirs from previous crashed runs."""
+        """Remove leftover graph temp dirs from previous crashed runs."""
         try:
             tmp = Path(tempfile.gettempdir())
-            for pattern in ("keyflow_alphahint_*", "keyflow_gvm_in_*"):
+            for pattern in ("keyflow_alphahint_*", "keyflow_audio_*", "keyflow_birefnet_alpha_*", "keyflow_gvm_alpha_*", "keyflow_gvm_in_*"):
                 for d in tmp.glob(pattern):
                     if d.is_dir():
                         shutil.rmtree(d, ignore_errors=True)
         except Exception:
             pass
+
+    def _make_graph_temp_dir(self, prefix: str) -> Path:
+        path = Path(tempfile.mkdtemp(prefix=prefix))
+        temp_dirs = list(getattr(self, "_graph_temp_dirs", []) or [])
+        temp_dirs.append(path)
+        self._graph_temp_dirs = temp_dirs
+        return path
+
+    def _cleanup_graph_temp_dirs(self) -> None:
+        for path in list(getattr(self, "_graph_temp_dirs", []) or []):
+            try:
+                shutil.rmtree(path, ignore_errors=True)
+            except Exception:
+                pass
+        self._graph_temp_dirs = []
 
     def _tr(self, key: str) -> str:
         return t(key, self.language_code)
@@ -250,7 +266,6 @@ class InferenceWorker(QObject):
             self.log_message.emit(self._tr("worker_graph_processing"))
 
             output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
             self._graph_output_dir = output_dir
             self._graph_source_path = str(video_path or "")
             self._graph_mask_path = str(mask_path or "")
@@ -258,6 +273,7 @@ class InferenceWorker(QObject):
             self._graph_audio_path = ""
             self._graph_write_plans = {}
             self._graph_stream_saved_paths = {}
+            self._graph_temp_dirs = []
             self._graph_correction_masks = config.get("correction_masks") or None
             cancel_policy = normalize_cancel_policy(config.get("cancel_policy"))
 
@@ -390,6 +406,7 @@ class InferenceWorker(QObject):
         finally:
             # Keep default finalize on non-cancel paths and as safety-net.
             self._finalize_graph_stream_writes()
+            self._cleanup_graph_temp_dirs()
             self._graph_write_plans = {}
             self._graph_stream_saved_paths = {}
             self._graph_output_dir = None
@@ -1065,7 +1082,7 @@ class InferenceWorker(QObject):
         try:
             import subprocess
             from app.utils.ffmpeg import get_ffmpeg_exe
-            audio_tmp = str(output_dir / "_audio.wav")
+            audio_tmp = str(self._make_graph_temp_dir("keyflow_audio_") / "audio.wav")
             subprocess.run(
                 [get_ffmpeg_exe(), "-y", "-i", video_path, "-vn",
                  "-acodec", "pcm_s16le", "-ac", "2", "-ar", "44100", audio_tmp],
@@ -1323,8 +1340,13 @@ class InferenceWorker(QObject):
                     if loaded_mask is not None:
                         fallback_mask = np.where(np.asarray(loaded_mask, dtype=np.uint8) > 127, 255, 0).astype(np.uint8)
 
+                if len(by_frame_masks) == 1:
+                    single_mask = next(iter(by_frame_masks.values()))
+                    if single_mask is not None:
+                        return {**inputs, "out": single_mask, "mask": single_mask}
+
                 sam_masks_sequence: list[np.ndarray] = []
-                if img_frames is not None and len(img_frames) > 0 and (by_frame_masks or fallback_mask is not None):
+                if img_frames is not None and len(img_frames) > 0 and len(by_frame_masks) > 1:
                     node_id_str = str(node_data.get("id", ""))
                     is_video = len(img_frames) > 1
                     start_frame = int(getattr(self, "_graph_start_frame", 0) or 0)
@@ -1962,8 +1984,7 @@ class InferenceWorker(QObject):
         disk_sequence_paths: list[str] = []
         disk_sequence_dir: Path | None = None
         if has_non_write_consumers:
-            root_dir = self._graph_output_dir if self._graph_output_dir is not None else Path(tempfile.mkdtemp(prefix="keyflow_birefnet_"))
-            disk_sequence_dir = Path(root_dir) / "_keyflow_birefnet_alpha" / f"{node_id or 'birefnet'}"
+            disk_sequence_dir = self._make_graph_temp_dir("keyflow_birefnet_alpha_") / f"{node_id or 'birefnet'}"
             disk_sequence_dir.mkdir(parents=True, exist_ok=True)
             for stale in disk_sequence_dir.glob("*.png"):
                 stale.unlink(missing_ok=True)
@@ -2087,14 +2108,14 @@ class InferenceWorker(QObject):
 
         # 1. Save input frames as PNGs (GVM needs a file-system path).
         self.stage_progress.emit(5, self._tr("worker_gvm_saving_frames"))
-        tmp_input_dir = Path(tempfile.mkdtemp(prefix="keyflow_gvm_in_"))
+        tmp_input_dir = self._make_graph_temp_dir("keyflow_gvm_in_")
         for i, frame in enumerate(frames):
             frame_bgr = cv2.cvtColor(np.asarray(frame, dtype=np.uint8), cv2.COLOR_RGB2BGR)
             cv2.imwrite(str(tmp_input_dir / f"{i:05d}.png"), frame_bgr)
 
         # 2. Prepare output directory on a temporary path (avoids polluting user output dir).
-        _gvm_out_root = self._graph_output_dir if self._graph_output_dir is not None else Path(tempfile.mkdtemp(prefix="keyflow_gvm_alpha_"))
-        disk_sequence_dir = _gvm_out_root / f"gvm_alpha_{node_id}" if self._graph_output_dir is not None else _gvm_out_root
+        _gvm_out_root = self._make_graph_temp_dir("keyflow_gvm_alpha_")
+        disk_sequence_dir = _gvm_out_root / f"gvm_alpha_{node_id}"
         disk_sequence_dir.mkdir(parents=True, exist_ok=True)
         for stale in disk_sequence_dir.glob("*.png"):
             stale.unlink(missing_ok=True)
@@ -2789,6 +2810,11 @@ class InferenceWorker(QObject):
         fg_streamed: list[np.ndarray] = []
 
         def _matting_progress(current: int, total: int, frame_rgb, alpha_np):
+            percent = 20 + int((max(0, current) / max(1, total)) * 70)
+            self.stage_progress.emit(
+                min(90, percent),
+                self._tr("worker_matanyone2_processing_frame").format(current=current, total=total),
+            )
             self.node_frame_progress.emit("matting", current, total)
             if self.cancel_flag.is_set():
                 return
@@ -2818,13 +2844,29 @@ class InferenceWorker(QObject):
         # Ensure model is loaded
         if not self.inference_service.model_service.is_loaded():
             self.stage_progress.emit(8, self._tr("worker_inference_prepare_model"))
-            self.log_message.emit(self._tr("worker_inference_load_model"))
+            model_path = self.inference_service.model_service.ensure_weights_available(
+                lambda percent, _text: self.stage_progress.emit(
+                    8 + int(max(0, min(100, int(percent))) * 0.02),
+                    self._tr("worker_matanyone2_download_weights").format(percent=int(percent)),
+                )
+            )
+            self.stage_progress.emit(10, self._tr("worker_matanyone2_weights_ready"))
+            self.log_message.emit(
+                self._tr("worker_matanyone2_weights_ready_path").format(path=str(model_path))
+            )
+            if self.cancel_flag.is_set():
+                return {"alpha": np.array([]), "fg": np.array([])}
             # Free SAM weights before loading MatAnyone2 to reclaim VRAM/RAM.
             self._unload_sam_service_if_loaded()
-            self.inference_service.model_service.load_model()
+            self.stage_progress.emit(12, self._tr("worker_inference_load_model"))
+            self.log_message.emit(self._tr("worker_inference_load_model"))
+            self.inference_service.model_service.load_model(str(model_path))
+            self.stage_progress.emit(14, self._tr("worker_matanyone2_model_ready"))
+            self.log_message.emit(self._tr("worker_matanyone2_model_ready"))
 
         # Использовать синглтон InferenceService для процесса
         correction_masks = getattr(self, "_graph_correction_masks", None)
+        self.stage_progress.emit(16, self._tr("worker_matanyone2_warmup"))
         self.inference_service.process_video(
             frames,
             mask=mask,

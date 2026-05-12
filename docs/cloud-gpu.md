@@ -1,12 +1,12 @@
 # Cloud GPU Setup
 
-KeyFlow Studio includes an optional EC2 worker for GPU inference. Use cloud GPU only for workloads that cannot be validated locally.
+KeyFlow Studio includes an optional EC2 worker for GPU inference. Use cloud GPU for workflows that need more VRAM or throughput than local hardware can provide.
 
 ## Recommended Workflow
 
 1. Develop and run smoke tests locally.
 2. Validate model loading on a local GPU if available.
-3. Push code to GitHub.
+3. Use a known commit or release tag.
 4. Pull the code on EC2.
 5. Run a short cloud smoke test.
 6. Run production-sized jobs only after the smoke test passes.
@@ -35,11 +35,11 @@ uvicorn worker:app --host 0.0.0.0 --port 8080 --workers 1
 
 Keep one job per GPU unless the model and VRAM profile are known to support concurrency.
 
-## Secrets
+## Credentials
 
-Never commit AWS credentials. Use AWS profiles, instance roles, or environment-specific secret stores.
+Use AWS profiles, instance roles, or environment-specific secret stores for credentials. Do not paste credentials into issue reports or logs.
 
-Ignored local examples include:
+Common local credential file names include:
 
 - `keyflow-cli_accessKeys.csv`
 - `.env`

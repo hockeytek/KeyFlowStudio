@@ -216,14 +216,26 @@ class SamMaskWorker(QObject):
                 raise RuntimeError(self._tr("sam2_native_video_unavailable"))
 
             ctx = context if isinstance(context, dict) else {}
-            result = self.sam_service.propagate_with_prompt(
-                ctx.get("frames") or [],
-                ctx.get("points") or [],
-                ctx.get("labels") or [],
-                start_index=int(ctx.get("current_frame_index", 0) or 0),
-                direction=str(ctx.get("direction", "forward") or "forward"),
-                reset_session=False,
-            )
+            seed_mask = ctx.get("seed_mask")
+            if seed_mask is not None and not (ctx.get("points") or []):
+                if not hasattr(self.sam_service, "propagate_with_seed_mask"):
+                    raise RuntimeError(self._tr("sam2_native_video_unavailable"))
+                result = self.sam_service.propagate_with_seed_mask(
+                    ctx.get("frames") or [],
+                    seed_mask,
+                    start_index=int(ctx.get("current_frame_index", 0) or 0),
+                    direction=str(ctx.get("direction", "forward") or "forward"),
+                    reset_session=False,
+                )
+            else:
+                result = self.sam_service.propagate_with_prompt(
+                    ctx.get("frames") or [],
+                    ctx.get("points") or [],
+                    ctx.get("labels") or [],
+                    start_index=int(ctx.get("current_frame_index", 0) or 0),
+                    direction=str(ctx.get("direction", "forward") or "forward"),
+                    reset_session=False,
+                )
 
             frame_index_offset = int(ctx.get("frame_index_offset", 0) or 0)
             sequence_masks_map = {}

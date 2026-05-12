@@ -573,7 +573,6 @@ class SamInteractionCoordinator:
         if not self.has_sam2_node_in_graph():
             return False
         if self.has_sam2_to_matting_mask_link_in_graph():
-            self._notify_auto_propagate_skipped_for_matting_link()
             return False
         if not self.has_ready_sam2_mask_for_auto_propagation():
             return False

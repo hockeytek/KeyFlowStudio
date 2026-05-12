@@ -391,8 +391,8 @@ class GVMExecuteNodeTests(unittest.TestCase):
         for p in result["alpha"]["paths"]:
             self.assertTrue(Path(p).exists(), f"PNG должен существовать после dilate: {p}")
 
-    def test_output_dir_uses_graph_output_dir(self):
-        """Если задан _graph_output_dir, disk_sequence должен быть внутри него."""
+    def test_output_dir_uses_temp_dir_not_graph_output_dir(self):
+        """GVM scratch не должен писать в пользовательский _graph_output_dir."""
         worker = _make_worker()
         with tempfile.TemporaryDirectory() as tmpdir:
             worker._graph_output_dir = Path(tmpdir)
@@ -405,10 +405,12 @@ class GVMExecuteNodeTests(unittest.TestCase):
             )
 
             for p in result["alpha"]["paths"]:
-                self.assertTrue(
-                    str(p).startswith(tmpdir),
-                    f"Путь alpha должен быть внутри _graph_output_dir: {p}",
-                )
+                self.assertFalse(str(p).startswith(tmpdir), f"Scratch не должен быть внутри _graph_output_dir: {p}")
+                self.assertIn("keyflow_gvm_alpha_", str(p))
+
+            worker._cleanup_graph_temp_dirs()
+            for p in result["alpha"]["paths"]:
+                self.assertFalse(Path(p).exists(), f"Scratch должен удаляться cleanup-ом: {p}")
 
     def test_emits_gvm_progress_from_service_callback(self):
         worker = _make_worker()

@@ -2,7 +2,7 @@
 
 KeyFlow Studio is a desktop application for node-based AI video keying, matting, mask generation, and compositing workflows. It combines a Qt user interface with a graph runtime that can orchestrate models and services such as CorridorKey, SAM, BiRefNet, GVM, and MatAnyone2.
 
-The project is currently developed as a private product/research codebase. This repository is being prepared with public-facing documentation and GitHub workflows before any public release.
+This public preview is intended for testing, source review, and collaboration around the current KeyFlow Studio workflow. The application is usable, but model integrations, packaging, and node contracts are still evolving.
 
 ## Highlights
 
@@ -19,14 +19,14 @@ KeyFlow Studio is under active development. APIs, node contracts, model integrat
 
 Recommended current use:
 
-- Local development and experimentation.
-- Private cloud GPU testing.
-- Internal workflow validation.
+- Testing the public preview app bundle or running from source.
+- Experimenting with node graph workflows on local media.
+- Validating cloud GPU worker behavior in your own controlled environment.
 
 Not yet recommended:
 
 - Treating the repository as a stable public SDK.
-- Publishing model weights or private cloud credentials.
+- Redistributing third-party model weights without checking upstream terms.
 - Depending on undocumented node internals.
 
 ## Screenshots
@@ -79,9 +79,15 @@ On macOS, install FFmpeg with Homebrew if needed:
 brew install ffmpeg
 ```
 
+## App Bundle
+
+A macOS Intel public-preview bundle is available on the [GitHub releases page](https://github.com/hockeytek/KeyFlowStudio/releases). The app is ad-hoc signed and not notarized, so macOS Gatekeeper may require an explicit Open action on first launch.
+
+The release bundle includes the application code and default graph templates. It does not include third-party model weights or checkpoints.
+
 ## Model Weights
 
-Model weights are intentionally not stored in this repository. Downloaded weights, checkpoints, and model caches are ignored by `.gitignore`.
+Model weights are intentionally not stored in this repository. KeyFlow Studio resolves supported weights at runtime through the configured model cache or through model-specific setup steps.
 
 KeyFlow Studio checks the configured model cache at runtime and downloads supported weights automatically when they are available from the configured upstream source. Models that require manual license acceptance, private tokens, or external setup should be configured through their model-specific instructions.
 
@@ -97,7 +103,7 @@ Integrated or supported workflows include CorridorKey by `nikopueringer`, BiRefN
 
 The repository includes an optional EC2 worker under [ec2_worker/](ec2_worker/) for headless GPU inference. This is useful when local hardware is not strong enough for final production-sized tests.
 
-Start with [docs/cloud-gpu.md](docs/cloud-gpu.md) before launching cloud resources. Always keep AWS keys outside the repository.
+Start with [docs/cloud-gpu.md](docs/cloud-gpu.md) before launching cloud resources. Use AWS profiles, instance roles, or environment-specific secret storage for credentials.
 
 ## Project Layout
 
@@ -153,8 +159,8 @@ Optional device override:
 
 ## Security
 
-Do not commit secrets, access keys, model weights, downloaded checkpoints, local settings, generated media, or large test footage. See [SECURITY.md](SECURITY.md) for reporting and handling guidance.
+Please report security issues through a private channel rather than public issues. See [SECURITY.md](SECURITY.md) for reporting and handling guidance.
 
 ## License
 
-This repository is currently source-available with all rights reserved. See [LICENSE](LICENSE). If an open-source release is planned later, review [docs/public-release-checklist.md](docs/public-release-checklist.md) first.
+This repository is source-available with all rights reserved. See [LICENSE](LICENSE). Third-party model projects retain their own licenses and usage terms.

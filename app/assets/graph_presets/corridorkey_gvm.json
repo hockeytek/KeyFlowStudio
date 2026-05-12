@@ -220,8 +220,5 @@
       "src_port": "processed",
       "dst_port": "in"
     }
-  ],
-  "start_frame": 0,
-  "end_frame": 0,
-  "num_frames": 2
+  ]
 }

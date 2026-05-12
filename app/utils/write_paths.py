@@ -138,3 +138,9 @@ def resolve_graph_write_output_dir(
 def build_keyflow_output_dir(source: Path, stream_label: str) -> Path:
     """Return the final auto output directory for a specific stream."""
     return build_keyflow_base_dir(source) / normalize_write_stream_name(source_port=stream_label)
+
+
+def build_keyflow_internal_dir(source: Path, name: str) -> Path:
+    """Return an internal generated-artifact directory under the source keyflow root."""
+    safe_name = _sanitize_path_component(name) or "internal"
+    return build_keyflow_base_dir(source) / safe_name

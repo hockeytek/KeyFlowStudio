@@ -1531,7 +1531,7 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             write_cfg,
             Path(f"input{source_ext or ''}"),
         )
-        output_dir_raw = str(write_cfg.get("output_dir", "")).strip()
+        output_dir_raw = str(write_cfg.get("resolved_output_dir", "") or write_cfg.get("output_dir", "")).strip()
         output_dir = Path(output_dir_raw) if output_dir_raw else fallback_output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1851,7 +1851,6 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         if not self._has_sam2_node_in_graph():
             return False
         if self._has_sam2_to_matting_mask_link_in_graph():
-            self._notify_auto_propagate_skipped_for_matting_link()
             return False
         if not self._has_ready_sam2_mask_for_auto_propagation():
             return False

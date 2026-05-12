@@ -104,7 +104,7 @@
         "auto_output_dir": true,
         "output_dir": "",
         "file_name": "",
-        "output_format": "png",
+        "output_format": "source",
         "video_codec": "h264",
         "video_quality": 23,
         "video_preset": "medium",
@@ -152,8 +152,5 @@
       "src_port": "alpha",
       "dst_port": "in"
     }
-  ],
-  "start_frame": 1,
-  "end_frame": 1,
-  "num_frames": 2
+  ]
 }

@@ -1,6 +1,6 @@
-# Public Release Checklist
+# Release Hygiene Checklist
 
-Use this checklist before changing repository visibility from private to public.
+Use this checklist before publishing a new release asset, changing packaged resources, or updating a public preview tag.
 
 ## Secrets
 
@@ -9,19 +9,18 @@ Use this checklist before changing repository visibility from private to public.
 - [ ] Confirm no AWS access keys, `.env` files, SSH keys, or token files are tracked.
 - [ ] Rotate any credential that was ever committed accidentally.
 
-## Large And Private Assets
+## Large And Restricted Assets
 
 - [ ] Confirm no model weights are tracked.
 - [ ] Confirm no generated outputs are tracked.
-- [ ] Confirm no private footage, customer media, or local test clips are tracked.
+- [ ] Confirm no private footage, customer media, or local test clips are tracked or attached to releases.
 - [ ] Confirm `.gitignore` excludes local caches, weights, checkpoints, and outputs.
 
 ## Legal And Licensing
 
-- [ ] Decide whether the project is open-source or source-available.
 - [ ] Review third-party model licenses and redistribution terms.
 - [ ] Review bundled fonts, icons, sounds, and UI assets.
-- [ ] Update `LICENSE` if public reuse is intended.
+- [ ] Confirm the published license text matches the intended reuse model.
 
 ## Documentation
 
