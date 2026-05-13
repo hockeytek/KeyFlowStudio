@@ -485,6 +485,21 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         self._play_loop_enabled = False
         self._play_started_monotonic = 0.0
         self._play_start_index = 0
+        # Coalescing render: every slider valueChanged just records the latest
+        # frame and arms a single-shot timer. The actual heavy preview render
+        # runs at most ~60 Hz with intermediate frames dropped — so dragging
+        # the slider feels instant instead of replaying every queued event.
+        self._pending_frame_index: int | None = None
+        self._frame_render_timer = QTimer(self)
+        self._frame_render_timer.setSingleShot(True)
+        self._frame_render_timer.setInterval(0)
+        self._frame_render_timer.timeout.connect(self._apply_pending_frame_change)
+        # Bounded LRU caches of pre-scaled QPixmap per (frame_idx, label_w, label_h).
+        # Avoids repeated numpy → QImage → SmoothTransformation work on a second
+        # pass through the timeline (loop playback, scrubbing, comparison).
+        self._playback_input_pixmap_cache: "OrderedDict[tuple, QPixmap]" = OrderedDict()
+        self._playback_output_pixmap_cache: "OrderedDict[tuple, QPixmap]" = OrderedDict()
+        self._playback_pixmap_cache_capacity = 256
         self._apply_playback_transport_icons()
 
         self._apply_language(announce=False)
@@ -2502,6 +2517,8 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         self.all_frames = frames
         self.current_frame_index = 0
         self.current_frame = frames[0]
+        # Drop any cached pre-scaled pixmaps from the previous media.
+        self._invalidate_playback_pixmap_cache()
         # Splitter baseline must be anchored to Source node media only.
         if request_node_type in {"", "source"}:
             self._original_foreground_for_splitter = np.asarray(self.current_frame, dtype=np.uint8)
@@ -2814,11 +2831,69 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         bpl = w * c
         return QImage(frame_rgb.tobytes(), w, h, bpl, QImage.Format.Format_RGB888).copy()
 
-    def _set_label_pixmap(self, label, pixmap: QPixmap):
+    def _playback_cache_lookup(self, cache: "OrderedDict[tuple, QPixmap]", key: tuple) -> QPixmap | None:
+        pix = cache.get(key)
+        if pix is not None:
+            cache.move_to_end(key)
+        return pix
+
+    def _playback_cache_store(self, cache: "OrderedDict[tuple, QPixmap]", key: tuple, pixmap: QPixmap) -> None:
+        cache[key] = pixmap
+        cache.move_to_end(key)
+        while len(cache) > self._playback_pixmap_cache_capacity:
+            cache.popitem(last=False)
+
+    def _invalidate_playback_pixmap_cache(self) -> None:
+        self._playback_input_pixmap_cache.clear()
+        self._playback_output_pixmap_cache.clear()
+        self._selected_node_frame_cache.clear() if hasattr(self, "_selected_node_frame_cache") else None
+
+    def _prescale_rgb_for_label(self, frame_rgb: np.ndarray, label_w: int, label_h: int) -> np.ndarray:
+        """Resize an RGB uint8 frame to fit the label box keeping aspect ratio.
+
+        Uses cv2.INTER_AREA for downscale (cheap + crisp) and INTER_LINEAR for
+        upscale. The resulting QImage is small, so subsequent QPixmap.scaled is
+        nearly free regardless of TransformationMode.
+        """
+        fh, fw = frame_rgb.shape[:2]
+        lw = max(1, int(label_w))
+        lh = max(1, int(label_h))
+        scale = min(lw / max(1, fw), lh / max(1, fh))
+        if scale >= 1.0:
+            interp = cv2.INTER_LINEAR
+        else:
+            interp = cv2.INTER_AREA
+        dw = max(1, int(fw * scale))
+        dh = max(1, int(fh * scale))
+        if (dw, dh) == (fw, fh):
+            return frame_rgb
+        return cv2.resize(frame_rgb, (dw, dh), interpolation=interp)
+
+    def _set_label_pixmap(self, label, pixmap: QPixmap) -> QPixmap:
         if label is self.ui.input_video_label:
             self._input_source_pixmap = pixmap
         elif label is self.ui.output_video_label:
             self._output_source_pixmap = pixmap
+
+        lw = max(1, int(label.width()))
+        lh = max(1, int(label.height()))
+
+        # Transparent LRU cache keyed by (label_id, source pixmap identity, size).
+        # On a re-display of the same source pixmap (loop playback, scrubbing
+        # back, label resize without source change) we skip the QPixmap.scaled
+        # cost entirely.
+        cache = self._playback_input_pixmap_cache if label is self.ui.input_video_label else self._playback_output_pixmap_cache
+        try:
+            src_key = int(pixmap.cacheKey())
+        except Exception:
+            src_key = id(pixmap)
+        cache_key = (id(label), src_key, lw, lh)
+        cached = self._playback_cache_lookup(cache, cache_key)
+        if cached is not None and not cached.isNull():
+            label.setPixmap(cached)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            return cached
+
         # Use a cheap (nearest) resampler while the playback timer is running:
         # SmoothTransformation on full-resolution HD/4K frames dominates the
         # per-tick cost and causes visible stutter. Quality is restored on stop.
@@ -2834,6 +2909,8 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         )
         label.setPixmap(scaled)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._playback_cache_store(cache, cache_key, scaled)
+        return scaled
 
     def on_generate_mask(self):
         self.sam_interaction.on_generate_mask()
@@ -3341,18 +3418,42 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         if not self.all_frames:
             return
         value = max(0, min(len(self.all_frames) - 1, value))
+        # Cheap, synchronous: keep model state + label readout instantly in sync
+        # so the user always sees the slider position responding immediately.
         self.current_frame_index = value
         self.current_frame = self.all_frames[value]
-        if self._node_graph_dialog is not None and hasattr(self._node_graph_dialog, "update_active_read_node_preview_frame"):
+        self._update_frame_info()
+        # Defer the expensive preview render through a coalescing timer so a
+        # burst of slider events (drag) collapses into a single render of the
+        # latest value instead of replaying every intermediate frame.
+        self._pending_frame_index = value
+        render_timer = getattr(self, "_frame_render_timer", None)
+        if render_timer is None:
+            # Tests / partial init: run synchronously to preserve old contract.
+            self._apply_pending_frame_change()
+            return
+        if not render_timer.isActive():
+            render_timer.start()
+
+    def _apply_pending_frame_change(self) -> None:
+        if self._pending_frame_index is None or not self.all_frames:
+            self._pending_frame_index = None
+            return
+        value = self._pending_frame_index
+        self._pending_frame_index = None
+        # Re-clamp in case all_frames shrank between queueing and dispatch.
+        value = max(0, min(len(self.all_frames) - 1, value))
+        if (
+            self._node_graph_dialog is not None
+            and hasattr(self._node_graph_dialog, "update_active_read_node_preview_frame")
+        ):
             self._node_graph_dialog.update_active_read_node_preview_frame(value)
         self._render_input_preview()
         self._render_output_preview_for_index(value)
         if hasattr(self, "sam_interaction") and self.sam_interaction is not None:
             self.sam_interaction.on_frame_changed_show_sam_mask(value)
-        else:
-            if self._active_node_type in {"sam2"}:
-                self._show_mask_preview_on_output(self.sam2.state.mask_for_frame(value))
-        self._update_frame_info()
+        elif self._active_node_type in {"sam2"}:
+            self._show_mask_preview_on_output(self.sam2.state.mask_for_frame(value))
 
     def on_first_frame(self):
         frame_slider = self._transport_slider()

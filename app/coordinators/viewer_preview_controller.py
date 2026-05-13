@@ -637,20 +637,35 @@ class ViewerPreviewController:
             main_frames = getattr(w, "all_frames", None) or []
             if main_frames:
                 safe_idx = max(0, min(len(main_frames) - 1, idx))
+                lbl = w.ui.output_video_label
+                lw, lh = max(1, lbl.width()), max(1, lbl.height())
+                cache = getattr(w, "_playback_output_pixmap_cache", None)
+                cache_key = ("source_fast", safe_idx, lw, lh)
+                if cache is not None:
+                    cached = w._playback_cache_lookup(cache, cache_key)
+                    if cached is not None and not cached.isNull():
+                        lbl.setPixmap(cached)
+                        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        return
+
                 raw = np.asarray(main_frames[safe_idx])
                 if raw.ndim == 3 and raw.shape[2] >= 3:
                     raw = raw[:, :, :3]
-                lbl = w.ui.output_video_label
-                lw, lh = max(1, lbl.width()), max(1, lbl.height())
-                fh, fw = raw.shape[:2]
-                scale = min(lw / max(1, fw), lh / max(1, fh))
-                dw, dh = max(1, int(fw * scale)), max(1, int(fh * scale))
-                resized = cv2.resize(raw, (dw, dh), interpolation=cv2.INTER_AREA)
+                if hasattr(w, "_prescale_rgb_for_label"):
+                    resized = w._prescale_rgb_for_label(raw, lw, lh)
+                else:
+                    fh, fw = raw.shape[:2]
+                    scale = min(lw / max(1, fw), lh / max(1, fh))
+                    dw, dh = max(1, int(fw * scale)), max(1, int(fh * scale))
+                    resized = cv2.resize(raw, (dw, dh), interpolation=cv2.INTER_AREA)
                 if resized.dtype != np.uint8:
                     resized = np.clip(resized, 0, 255).astype(np.uint8)
                 qimg = w._to_qimage(resized)
-                lbl.setPixmap(QPixmap.fromImage(qimg))
+                pix = QPixmap.fromImage(qimg)
+                lbl.setPixmap(pix)
                 lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                if cache is not None:
+                    w._playback_cache_store(cache, cache_key, pix)
                 return
 
         frame = self._load_selected_node_frame_by_index(idx)
