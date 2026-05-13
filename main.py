@@ -3518,6 +3518,11 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         self.current_frame_index = value
         self.current_frame = self.all_frames[value]
         self._update_frame_info()
+        # If hardware-decoded playback owns the input view, just seek it.
+        viewer = getattr(self, "_hybrid_input_viewer", None)
+        if viewer is not None and viewer.is_video_active:
+            viewer.seek_to_frame(value)
+            # Output side still uses the software path — coalesce as usual.
         # Defer the expensive preview render through a coalescing timer so a
         # burst of slider events (drag) collapses into a single render of the
         # latest value instead of replaying every intermediate frame.
@@ -3543,7 +3548,10 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             and hasattr(self._node_graph_dialog, "update_active_read_node_preview_frame")
         ):
             self._node_graph_dialog.update_active_read_node_preview_frame(value)
-        self._render_input_preview()
+        # Skip the input numpy-overlay path while hardware playback owns the
+        # input viewer — the QVideoWidget already shows the live frame.
+        if not self._hybrid_input_viewer_active():
+            self._render_input_preview()
         self._render_output_preview_for_index(value)
         if hasattr(self, "sam_interaction") and self.sam_interaction is not None:
             self.sam_interaction.on_frame_changed_show_sam_mask(value)
