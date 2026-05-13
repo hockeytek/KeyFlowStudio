@@ -479,9 +479,12 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         self.last_output_dir = None
 
         self.play_timer = QTimer(self)
+        self.play_timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.play_timer.timeout.connect(self._play_next_frame)
         self._play_direction = 1
         self._play_loop_enabled = False
+        self._play_started_monotonic = 0.0
+        self._play_start_index = 0
         self._apply_playback_transport_icons()
 
         self._apply_language(announce=False)
@@ -2816,10 +2819,18 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             self._input_source_pixmap = pixmap
         elif label is self.ui.output_video_label:
             self._output_source_pixmap = pixmap
+        # Use a cheap (nearest) resampler while the playback timer is running:
+        # SmoothTransformation on full-resolution HD/4K frames dominates the
+        # per-tick cost and causes visible stutter. Quality is restored on stop.
+        play_timer = getattr(self, "play_timer", None)
+        if play_timer is not None and play_timer.isActive():
+            transform_mode = Qt.TransformationMode.FastTransformation
+        else:
+            transform_mode = Qt.TransformationMode.SmoothTransformation
         scaled = pixmap.scaled(
             label.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+            transform_mode,
         )
         label.setPixmap(scaled)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -3398,12 +3409,21 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             return
         self._play_direction = -1 if direction < 0 else 1
         interval = max(15, int(1000 / max(1.0, self.video_fps)))
+        # Anchor playback to wall-clock so we can drop frames if rendering
+        # falls behind, instead of accumulating drift on each tick.
+        import time as _time
+        self._play_started_monotonic = _time.monotonic()
+        frame_slider = self._transport_slider()
+        self._play_start_index = (
+            frame_slider.value() if frame_slider is not None else self.current_frame_index
+        )
         self.play_timer.start(interval)
         play_btn = self._transport_button("btn_play")
         if play_btn is not None:
             play_btn.setIcon(self._icon_pause)
 
     def _stop_playback(self) -> None:
+        was_active = self.play_timer.isActive()
         self.play_timer.stop()
         play_btn = self._transport_button("btn_play")
         if play_btn is not None:
@@ -3415,6 +3435,14 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         if play_reverse_btn is not None and play_reverse_btn.isChecked():
             with QSignalBlocker(play_reverse_btn):
                 play_reverse_btn.setChecked(False)
+        # Repaint the current frame at full SmoothTransformation quality now
+        # that the cheap playback resampler is no longer in effect.
+        if was_active and self.all_frames:
+            try:
+                self._render_input_preview()
+                self._render_output_preview_for_index(self.current_frame_index)
+            except Exception:
+                pass
 
     def _play_next_frame(self):
         if not self.all_frames:
@@ -3426,15 +3454,34 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             self._stop_playback()
             return
 
-        step = -1 if self._play_direction < 0 else 1
-        next_idx = frame_slider.value() + step
-        if next_idx < 0 or next_idx >= len(self.all_frames):
-            if self._play_loop_enabled and len(self.all_frames) > 1:
-                next_idx = len(self.all_frames) - 1 if step < 0 else 0
+        total = len(self.all_frames)
+        # Wall-clock target frame: if rendering fell behind, jump straight to
+        # where we *should* be instead of stepping ±1 and accumulating lag.
+        import time as _time
+        elapsed = max(0.0, _time.monotonic() - self._play_started_monotonic)
+        steps = int(elapsed * max(1.0, self.video_fps))
+        # Always advance at least one frame per tick so the UI keeps moving
+        # even if the wall-clock target hasn't crossed the next frame yet.
+        cur = frame_slider.value()
+        if self._play_direction < 0:
+            target_idx = self._play_start_index - steps
+            if target_idx >= cur:
+                target_idx = cur - 1
+        else:
+            target_idx = self._play_start_index + steps
+            if target_idx <= cur:
+                target_idx = cur + 1
+
+        if target_idx < 0 or target_idx >= total:
+            if self._play_loop_enabled and total > 1:
+                # Re-anchor at the wrap point so timing stays correct.
+                target_idx = total - 1 if self._play_direction < 0 else 0
+                self._play_started_monotonic = _time.monotonic()
+                self._play_start_index = target_idx
             else:
                 self._stop_playback()
                 return
-        frame_slider.setValue(next_idx)
+        frame_slider.setValue(target_idx)
 
     def _update_frame_info(self):
         if not self.all_frames:

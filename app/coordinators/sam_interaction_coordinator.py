@@ -338,8 +338,26 @@ class SamInteractionCoordinator:
         if host.current_frame is None:
             return
 
-        frame = host.current_frame.copy().astype(np.float32)
+        # Fast path: during plain playback there are no per-frame SAM overlays.
+        # Skip the full-frame .copy()/float32 cast and overlay loop entirely —
+        # this is the dominant cost per playback tick on HD/4K media.
         expected_shape = host.current_frame.shape[:2]
+        has_added_masks = any(
+            fi == host.current_frame_index
+            and mask is not None
+            and mask.shape[:2] == expected_shape
+            for fi, mask in host.sam2.state.added_masks
+        )
+        has_current_mask = (
+            host.sam2.state.current_mask is not None
+            and host.sam2.state.current_mask.shape[:2] == expected_shape
+        )
+        has_points = bool(host.sam2.state.points)
+        if not (has_added_masks or has_current_mask or has_points):
+            self.show_clean_input_frame()
+            return
+
+        frame = host.current_frame.copy().astype(np.float32)
         selected_rows = set(self.effective_selected_sam_mask_rows())
         selected_contours: list[tuple[int, np.ndarray, np.ndarray]] = []
 
