@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from PySide6.QtCore import QObject, QSize, QUrl, Qt, Signal
+from PySide6.QtCore import QSize, QUrl, Qt, Signal
 from PySide6.QtGui import QMouseEvent, QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
