@@ -231,6 +231,7 @@ from app.utils.media import resolve_numbered_image_sequence
 from app.settings import get_app_settings
 from app.cloud_settings import get_cloud_setting
 from app.settings_dialog_mixin import SettingsDialogMixin
+from app.widgets import HybridInputViewer
 
 APP_VERSION = "0.1.0"
 logger = logging.getLogger(__name__)
@@ -243,6 +244,7 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self._install_hardware_input_viewer()
         self._optional_controls_present = (
             hasattr(self.ui, "combo_input_type")
             and hasattr(self.ui, "combo_param_preset")
@@ -901,6 +903,99 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         slider = self._transport_slider()
         if slider is not None:
             slider.setEnabled(enabled)
+
+    def _install_hardware_input_viewer(self) -> None:
+        """Replace the bare ``input_video_label`` QLabel with a hybrid viewer
+        that can switch between the existing QLabel render path (overlays,
+        sequences, processed frames) and a hardware-accelerated QVideoWidget
+        for plain video playback (VideoToolbox / Metal on macOS).
+
+        The replacement preserves objectName, geometry constraints, cursor and
+        stylesheet, and exposes a QLabel-shaped API (``setPixmap``, ``setText``
+        etc.), so existing call sites do not change.
+        """
+        old = getattr(self.ui, "input_video_label", None)
+        if old is None or isinstance(old, HybridInputViewer):
+            return
+        parent_layout = old.parent().layout() if old.parent() is not None else None
+        if parent_layout is None:
+            return
+
+        hybrid = HybridInputViewer(old.parentWidget())
+        hybrid.setObjectName(old.objectName())
+        try:
+            hybrid.setMinimumSize(old.minimumSize())
+            hybrid.setMaximumSize(old.maximumSize())
+            hybrid.setSizePolicy(old.sizePolicy())
+            hybrid.setCursor(old.cursor())
+            style = old.styleSheet()
+            if style:
+                hybrid.setStyleSheet(style)
+            text = old.text()
+            if text:
+                hybrid.setText(text)
+            hybrid.setAlignment(old.alignment())
+        except Exception:
+            pass
+
+        # Splice into the same layout slot.
+        idx = parent_layout.indexOf(old)
+        if idx >= 0:
+            parent_layout.removeWidget(old)
+            try:
+                parent_layout.insertWidget(idx, hybrid)
+            except Exception:
+                parent_layout.addWidget(hybrid)
+        else:
+            parent_layout.addWidget(hybrid)
+        old.hide()
+        old.setParent(None)
+        old.deleteLater()
+
+        # Rebind ``self.ui.input_video_label`` so all existing call sites keep
+        # working unchanged. The hybrid widget proxies QLabel-like methods.
+        self.ui.input_video_label = hybrid
+
+        # Keep slider in sync with hardware playback position.
+        hybrid.frame_changed.connect(self._on_hybrid_player_frame_changed)
+        hybrid.playback_finished.connect(self._on_hybrid_player_finished)
+        self._hybrid_input_viewer = hybrid
+
+    def _hybrid_input_viewer_active(self) -> bool:
+        viewer = getattr(self, "_hybrid_input_viewer", None)
+        return bool(viewer is not None and viewer.is_video_active)
+
+    def _on_hybrid_player_frame_changed(self, frame_index: int) -> None:
+        if not self.all_frames:
+            return
+        clamped = max(0, min(len(self.all_frames) - 1, int(frame_index)))
+        slider = self._transport_slider()
+        if slider is None:
+            return
+        # Avoid feedback loop: setValue triggers on_frame_slider_changed which
+        # would only update labels, not seek the player back, so this is safe.
+        if slider.value() != clamped:
+            with QSignalBlocker(slider):
+                slider.setValue(clamped)
+        # Lightweight bookkeeping; full preview render is suppressed while the
+        # native player owns the input view.
+        self.current_frame_index = clamped
+        try:
+            self.current_frame = self.all_frames[clamped]
+        except Exception:
+            pass
+        self._update_frame_info()
+
+    def _on_hybrid_player_finished(self) -> None:
+        viewer = getattr(self, "_hybrid_input_viewer", None)
+        if viewer is None:
+            return
+        if self._play_loop_enabled:
+            viewer.seek_to_frame(0)
+            viewer.resume_video()
+            return
+        # Stop and fall back to QLabel showing the last frame.
+        self._stop_playback()
 
     def _apply_playback_transport_icons(self) -> None:
         a = self._app_assets_dir
@@ -3509,6 +3604,21 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             self._stop_playback()
             return
         self._play_direction = -1 if direction < 0 else 1
+
+        # Try the hardware path first: a real video file, forward playback,
+        # no SAM overlays / split-view that would require composited frames.
+        if self._can_use_hardware_input_playback(direction):
+            viewer = getattr(self, "_hybrid_input_viewer", None)
+            frame_slider = self._transport_slider()
+            start_idx = frame_slider.value() if frame_slider is not None else self.current_frame_index
+            start_ms = int(start_idx * 1000.0 / max(1.0, self.video_fps))
+            if viewer.play_video(self.input_path, self.video_fps, start_position_ms=start_ms):
+                play_btn = self._transport_button("btn_play")
+                if play_btn is not None:
+                    play_btn.setIcon(self._icon_pause)
+                return
+            # Fall through to software path on failure.
+
         interval = max(15, int(1000 / max(1.0, self.video_fps)))
         # Anchor playback to wall-clock so we can drop frames if rendering
         # falls behind, instead of accumulating drift on each tick.
@@ -3523,7 +3633,48 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
         if play_btn is not None:
             play_btn.setIcon(self._icon_pause)
 
+    def _can_use_hardware_input_playback(self, direction: int) -> bool:
+        """True iff the hybrid hardware-decoded video path is safe to use."""
+        if direction < 0:
+            return False  # QMediaPlayer cannot play in reverse
+        viewer = getattr(self, "_hybrid_input_viewer", None)
+        if viewer is None:
+            return False
+        if not getattr(self, "is_video_input", False):
+            return False
+        path = getattr(self, "input_path", None) or ""
+        if not path or not os.path.exists(path):
+            return False
+        # Image sequence: the existing numpy path is already optimal and
+        # QMediaPlayer can't seek individual frames there.
+        try:
+            from app.utils.media import is_numbered_image_sequence
+            if is_numbered_image_sequence(path):
+                return False
+        except Exception:
+            return False
+        # Split-view shows a composited image (not just the source) - keep
+        # the software pipeline so the output side stays in sync.
+        if getattr(self, "_split_view_enabled", False):
+            return False
+        # SAM overlays / points on the current frame need the painter path.
+        sam2 = getattr(self, "sam2", None)
+        if sam2 is not None and getattr(sam2, "state", None) is not None:
+            state = sam2.state
+            if getattr(state, "points", None):
+                return False
+            if getattr(state, "added_masks", None):
+                return False
+            if getattr(state, "current_mask", None) is not None:
+                return False
+        return True
+
     def _stop_playback(self) -> None:
+        viewer = getattr(self, "_hybrid_input_viewer", None)
+        hw_was_active = viewer is not None and viewer.is_video_active
+        if hw_was_active:
+            viewer.stop_video()
+
         was_active = self.play_timer.isActive()
         self.play_timer.stop()
         play_btn = self._transport_button("btn_play")
@@ -3537,8 +3688,9 @@ class MainWindow(SettingsDialogMixin, QMainWindow):
             with QSignalBlocker(play_reverse_btn):
                 play_reverse_btn.setChecked(False)
         # Repaint the current frame at full SmoothTransformation quality now
-        # that the cheap playback resampler is no longer in effect.
-        if was_active and self.all_frames:
+        # that the cheap playback resampler is no longer in effect, and so
+        # that the QLabel page shows the freeze-frame after hardware stop.
+        if (was_active or hw_was_active) and self.all_frames:
             try:
                 self._render_input_preview()
                 self._render_output_preview_for_index(self.current_frame_index)
